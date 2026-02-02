@@ -1,0 +1,9 @@
+
+
+<div class="container text-center py-5">
+    <h1 class="display-1">404</h1>
+    <p class="lead">Page Not Found</p>
+    <p>The page you're looking for doesn't exist or has been moved.</p>
+    <a href="/" class="btn btn-primary">Return Home</a>
+</div>
+

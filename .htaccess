@@ -1,0 +1,12 @@
+Options -Indexes
+RewriteEngine On
+RewriteBase /e-commerce/
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Rewrite URLs → index.php?page=xxx
+RewriteRule ^([^/]+)/?$ index.php?page=$1 [L,QSA]
+
+# Default route (homepage)
+RewriteRule ^$ index.php [L]
