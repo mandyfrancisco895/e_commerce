@@ -37,9 +37,49 @@ if (isset($_SESSION['user_id'])) {
     if ($currentUser) {
         $_SESSION['username'] = $currentUser['username'];
         $_SESSION['email'] = $currentUser['email'];
-        if (!empty($currentUser['role'])) { $_SESSION['role'] = $currentUser['role']; }
+        $_SESSION['role'] = $currentUser['role'] ?? 'staff';
+        // ✅ FIXED: Store profile_pic full web path in session for easy access
+        if (!empty($currentUser['profile_pic'])) {
+            $_SESSION['profile_pic'] = '/E-COMMERCE/public/uploads/' . $currentUser['profile_pic'];
+        }
     }
 }
+
+// ✅ DEBUG: Uncomment this to see what's in currentUser
+// echo "<pre>DEBUG currentUser: "; print_r($currentUser); echo "</pre>";
+// echo "<pre>DEBUG SESSION: "; print_r($_SESSION); echo "</pre>";
+
+
+// ===================================================================
+// ✅ AVATAR HELPER FUNCTIONS - For RBAC Profile Picture Display
+// ===================================================================
+
+/**
+ * Get web-accessible path for avatar
+ * @param string|null $profilePic The filename from database
+ * @return string|null Web path to the avatar
+ */
+function getAvatarPath($profilePic) {
+    if (empty($profilePic)) {
+        return null;
+    }
+    return '/E-COMMERCE/public/uploads/' . $profilePic;
+}
+
+/**
+ * Check if avatar file physically exists
+ * @param string|null $profilePic The filename from database
+ * @return bool True if file exists
+ */
+function avatarExists($profilePic) {
+    if (empty($profilePic)) {
+        return false;
+    }
+    $filePath = $_SERVER['DOCUMENT_ROOT'] . '/E-COMMERCE/public/uploads/' . $profilePic;
+    return file_exists($filePath) && is_file($filePath);
+}
+
+// ===================================================================
 
 // Global Data Fetching
 $topProducts = $adminController->getTopPerformingProducts(5); 
@@ -55,7 +95,8 @@ $stmtMaint = $db->prepare("SELECT setting_value FROM system_settings WHERE setti
 $stmtMaint->execute();
 $isMaintActive = $stmtMaint->fetchColumn() ?: '0';
 
-$userQuery = "SELECT id, username, email, role, status FROM users ORDER BY role ASC, id DESC";
+// ✅ FIXED: Include profile_pic column for avatar display
+$userQuery = "SELECT id, username, email, role, status, profile_pic FROM users ORDER BY role ASC, id DESC";
 $userStmt = $db->prepare($userQuery);
 $userStmt->execute();
 $allUsers = $userStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -116,12 +157,14 @@ $isMaintActive = $stmt->fetchColumn() ?: '0';
 
 
 // Query to get every individual user from the database
-$userQuery = "SELECT id, username, email, role, status FROM users ORDER BY role ASC, username ASC";
+// ✅ FIXED: Include profile_pic column
+$userQuery = "SELECT id, username, email, role, status, profile_pic FROM users ORDER BY role ASC, username ASC";
 $userStmt = $db->prepare($userQuery);
 $userStmt->execute();
 $allUsers = $userStmt->fetchAll(PDO::FETCH_ASSOC);
 // Query to fetch every user individually
-$userQuery = "SELECT id, username, email, role, status FROM users ORDER BY id DESC";
+// ✅ FIXED: Include profile_pic column
+$userQuery = "SELECT id, username, email, role, status, profile_pic FROM users ORDER BY id DESC";
 $userStmt = $db->prepare($userQuery);
 $userStmt->execute();
 $allUsers = $userStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1091,16 +1134,26 @@ document.addEventListener('DOMContentLoaded', loadMaintLogs);
                                             $is_admin = ($user_role === 'admin' || $user_role === 'administrator');
                                             $status = $user['status'] ?? 'Active';
                                             $status_class = ($status === 'Active') ? 'bg-success' : 'bg-danger';
-                                            $profilePath = "../../../public/uploads/profile_pics/";
-                                            $hasPic = !empty($user['profile_pic']) && file_exists($profilePath . $user['profile_pic']);
+                                            
+                                            // ✅ FIXED: Use helper functions for avatar handling
+                                            $profilePic = $user['profile_pic'] ?? null;
+                                            $hasAvatar = avatarExists($profilePic);
+                                            $avatarPath = $hasAvatar ? getAvatarPath($profilePic) : null;
                                     ?>
                                         <tr class="user-row" data-role="<?php echo $user_role; ?>">
                                             <td class="ps-4">
                                                 <div class="d-flex align-items-center">
-                                                    <?php if ($hasPic): ?>
-                                                        <img src="<?php echo $profilePath . htmlspecialchars($user['profile_pic']); ?>" 
-                                                            alt="Profile" class="rounded-circle me-3 object-fit-cover shadow-sm" 
-                                                            style="width: 40px; height: 40px; border: 2px solid #fff;">
+                                                    <?php if ($hasAvatar): ?>
+                                                        <img src="<?php echo htmlspecialchars($avatarPath); ?>" 
+                                                            alt="<?php echo htmlspecialchars($user['username']); ?>" 
+                                                            class="rounded-circle me-3 object-fit-cover shadow-sm" 
+                                                            style="width: 40px; height: 40px; border: 2px solid #fff;"
+                                                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                        <!-- Fallback to initials if image fails to load -->
+                                                        <div class="bg-primary text-white rounded-circle d-none align-items-center justify-content-center me-3 shadow-sm" 
+                                                            style="width: 40px; height: 40px; font-weight: 600; font-size: 1.1rem;">
+                                                            <?php echo strtoupper(substr($user['username'] ?? 'U', 0, 1)); ?>
+                                                        </div>
                                                     <?php else: ?>
                                                         <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" 
                                                             style="width: 40px; height: 40px; font-weight: 600; font-size: 1.1rem;">
@@ -1137,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', loadMaintLogs);
                                                                     <input type="hidden" name="user_id" value="<?= $user_id ?>">
                                                                     <input type="hidden" name="status" value="<?= ($status === 'Active') ? 'Blocked' : 'Active'; ?>">
                                                                     <button type="submit" name="update_user_status" class="dropdown-item <?= ($status === 'Active') ? 'text-warning' : 'text-success'; ?>">
-                                                                        <?= ($status === 'Active') ? 'Revoke Access' : 'Restore Access'; ?>
+                                                                        <i class="bi bi-<?= ($status === 'Active') ? 'lock' : 'unlock'; ?> me-2"></i><?= ($status === 'Active') ? 'Revoke Access' : 'Restore Access'; ?>
                                                                     </button>
                                                                 </form>
                                                             </li>
@@ -1145,7 +1198,7 @@ document.addEventListener('DOMContentLoaded', loadMaintLogs);
                                                                 <form method="POST">
                                                                     <input type="hidden" name="user_id" value="<?= $user_id ?>">
                                                                     <button type="submit" name="delete_user" class="dropdown-item text-danger" onclick="return confirm('Delete permanently?')">
-                                                                        Delete Account
+                                                                        <i class="bi bi-trash me-2"></i>Delete Account
                                                                     </button>
                                                                 </form>
                                                             </li>
@@ -2430,7 +2483,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         </li>
                                         
                                         <!-- Edit Action -->
-                                        <li>
+                                        <!-- <li>
                                             <button type="button" class="dropdown-item" 
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#editCustomerModal"
@@ -2442,7 +2495,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                     data-status="<?= htmlspecialchars($userStatus) ?>">
                                                 <i class="bi bi-pencil text-secondary me-2"></i>Edit Customer
                                             </button>
-                                        </li>
+                                        </li> -->
                                         
                                         <li><hr class="dropdown-divider"></li>
                                         
@@ -6506,6 +6559,93 @@ if (isset($_POST['maintenance_mode']) && $_POST['maintenance_mode'] == '1') {
 
 </script>
 
+    <!-- ===================================================================
+         ✅ RBAC AUTO-SCROLL SCRIPT
+         =================================================================== -->
+    <script>
+    // Auto-navigate to RBAC section if hash is present (after form submission)
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.location.hash === '#rbac') {
+            // Click the RBAC nav link to show the section
+            const rbacLink = document.querySelector('a[href="#"][onclick*="rbac"]');
+            if (rbacLink) {
+                rbacLink.click();
+            }
+            
+            // Scroll to the top of the section
+            setTimeout(function() {
+                const rbacSection = document.getElementById('rbac-section');
+                if (rbacSection) {
+                    rbacSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 300);
+        }
+    });
+    </script>
+    <!-- =================================================================== -->
+
+    <!-- ===================================================================
+         ✅ AVATAR UPLOAD MODAL
+         =================================================================== -->
+    <div class="modal fade" id="avatarUploadModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-camera-fill me-2"></i>Change Avatar
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <form id="avatarUploadForm" action="upload-avatar.php" method="POST" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <input type="hidden" name="user_id" id="avatar_user_id">
+                        
+                        <div class="text-center mb-4">
+                            <p class="mb-2">Changing avatar for:</p>
+                            <h6 class="fw-bold text-primary" id="avatar_username_display"></h6>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="avatar_file" class="form-label fw-semibold">
+                                <i class="bi bi-image me-1"></i>Select New Avatar
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="avatar_file" 
+                                   name="avatar_file" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" 
+                                   required>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Recommended: Square image, max 2MB (JPG, PNG, GIF, WEBP)
+                            </small>
+                        </div>
+                        
+                        <!-- Preview Section -->
+                        <div id="avatarPreview" class="text-center d-none mt-4">
+                            <p class="text-muted small mb-2">Preview:</p>
+                            <img id="previewImage" 
+                                 src="" 
+                                 alt="Avatar Preview" 
+                                 class="rounded-circle shadow" 
+                                 style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #e9ecef;">
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-1"></i>Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload me-1"></i>Upload Avatar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- =================================================================== -->
     
     </body>
 </html>
@@ -6530,5 +6670,62 @@ if (isset($_POST['maintenance_mode']) && $_POST['maintenance_mode'] == '1') {
             if (modalEl) {
                 const myModal = new bootstrap.Modal(modalEl);
                 myModal.show();
-                }
             }
+        }
+
+// ===================================================================
+// ✅ AVATAR UPLOAD FUNCTIONALITY
+// ===================================================================
+
+/**
+ * Open avatar upload modal for a specific user
+ */
+function uploadAvatar(userId, username) {
+    document.getElementById('avatar_user_id').value = userId;
+    document.getElementById('avatar_username_display').textContent = username;
+    
+    // Reset the form
+    document.getElementById('avatarUploadForm').reset();
+    document.getElementById('avatarPreview').classList.add('d-none');
+    
+    const modal = new bootstrap.Modal(document.getElementById('avatarUploadModal'));
+    modal.show();
+}
+
+/**
+ * Preview avatar before upload
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    const avatarFileInput = document.getElementById('avatar_file');
+    
+    if (avatarFileInput) {
+        avatarFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Validate file size (2MB max)
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('File size must be less than 2MB');
+                    this.value = '';
+                    document.getElementById('avatarPreview').classList.add('d-none');
+                    return;
+                }
+                
+                // Validate file type
+                if (!file.type.match('image.*')) {
+                    alert('Please select an image file');
+                    this.value = '';
+                    document.getElementById('avatarPreview').classList.add('d-none');
+                    return;
+                }
+                
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('previewImage').src = e.target.result;
+                    document.getElementById('avatarPreview').classList.remove('d-none');
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+});

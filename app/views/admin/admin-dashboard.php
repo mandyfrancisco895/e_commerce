@@ -286,6 +286,175 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // ===================================================================
 // ✅ RBAC CREATE NEW ROLE HANDLER (POST Form Submission)
 // ===================================================================
+// ===================================================================
+// ✅ RBAC DELETE USER HANDLER - WITH FOREIGN KEY HANDLING
+// REPLACE THE OLD DELETE HANDLER WITH THIS ONE
+// ===================================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_admin_user'])) {
+    $userId = intval($_POST['user_id'] ?? 0);
+    $currentAdminId = $_SESSION['user_id'] ?? 0;
+    
+    // Prevent self-deletion
+    if ($userId === $currentAdminId) {
+        $_SESSION['error_message'] = "You cannot delete your own account!";
+        header("Location: admin-dashboard.php#rbac");
+        exit;
+    }
+    
+    if ($userId <= 0) {
+        $_SESSION['error_message'] = "Invalid user ID";
+        header("Location: admin-dashboard.php#rbac");
+        exit;
+    }
+    
+    try {
+        // Get user info before deletion for logging
+        $userToDelete = $userModel->getUserById($userId);
+        
+        if (!$userToDelete) {
+            $_SESSION['error_message'] = "User not found";
+            header("Location: admin-dashboard.php#rbac");
+            exit;
+        }
+        
+        $deletedUsername = $userToDelete['username'];
+        $deletedRole = $userToDelete['role'];
+        
+        // Check if user is only 'user' role (customers should be deleted via Customers section)
+        if (strtolower($deletedRole) === 'user') {
+            $_SESSION['error_message'] = "Regular customers must be deleted from the Customers section, not RBAC.";
+            header("Location: admin-dashboard.php#rbac");
+            exit;
+        }
+        
+        // Start transaction for safe deletion
+        $db->beginTransaction();
+        
+        // OPTION 1: SET user_id TO NULL in related tables (recommended)
+        // This keeps the historical data but removes the user reference
+        
+        // Update stock_movements - set user_id to NULL
+        $updateStock = $db->prepare("UPDATE stock_movements SET user_id = NULL WHERE user_id = ?");
+        $updateStock->execute([$userId]);
+        
+        // Update maintenance_logs - set admin_name to 'Deleted User' or keep as is
+        // (Usually we don't modify logs, but if there's a FK constraint, handle it)
+        // If maintenance_logs has FK constraint, you can:
+        // $updateLogs = $db->prepare("UPDATE maintenance_logs SET admin_id = NULL WHERE admin_id = ?");
+        // $updateLogs->execute([$userId]);
+        
+        // Update orders - set user_id to NULL (or a placeholder like 0 or -1)
+        $checkOrders = $db->prepare("SELECT COUNT(*) FROM orders WHERE user_id = ?");
+        $checkOrders->execute([$userId]);
+        $orderCount = $checkOrders->fetchColumn();
+        
+        if ($orderCount > 0) {
+            $updateOrders = $db->prepare("UPDATE orders SET user_id = NULL WHERE user_id = ?");
+            $updateOrders->execute([$userId]);
+        }
+        
+        // OPTION 2: DELETE related records (use if you want to remove all traces)
+        // Uncomment these if you want to delete related data instead:
+        
+        // Delete stock movements by this user
+        // $deleteStock = $db->prepare("DELETE FROM stock_movements WHERE user_id = ?");
+        // $deleteStock->execute([$userId]);
+        
+        // Now safe to delete the user
+        $deleteStmt = $db->prepare("DELETE FROM users WHERE id = ?");
+        $result = $deleteStmt->execute([$userId]);
+        
+        if ($result) {
+            // Log the deletion action
+            $adminName = $_SESSION['username'] ?? 'Admin';
+            $actionMessage = "Deleted " . ucfirst($deletedRole) . " account: $deletedUsername (ID: $userId)";
+            $logStmt = $db->prepare("INSERT INTO maintenance_logs (admin_name, action_performed, status) VALUES (?, ?, 'Success')");
+            $logStmt->execute([$adminName, $actionMessage]);
+            
+            $db->commit();
+            $_SESSION['success_message'] = "User account deleted successfully! ($deletedUsername)";
+        } else {
+            $db->rollBack();
+            $_SESSION['error_message'] = "Failed to delete user account";
+        }
+        
+    } catch (Exception $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("Delete admin user error: " . $e->getMessage());
+        
+        // User-friendly error message
+        if (strpos($e->getMessage(), 'foreign key constraint') !== false) {
+            $_SESSION['error_message'] = "Cannot delete user: This account has related records in the system. Please contact system administrator.";
+        } else {
+            $_SESSION['error_message'] = "Error deleting user: " . $e->getMessage();
+        }
+    }
+    
+    header("Location: admin-dashboard.php#rbac");
+    exit;
+}
+// ===================================================================
+
+
+// ===================================================================
+// ✅ RBAC UPDATE USER STATUS HANDLER - KEEP AS IS
+// ===================================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_user_status'])) {
+    $userId = intval($_POST['user_id'] ?? 0);
+    $newStatus = trim($_POST['status'] ?? '');
+    $currentAdminId = $_SESSION['user_id'] ?? 0;
+    
+    // Prevent changing own status
+    if ($userId === $currentAdminId) {
+        $_SESSION['error_message'] = "You cannot change your own account status!";
+        header("Location: admin-dashboard.php#rbac");
+        exit;
+    }
+    
+    // Validate status
+    $validStatuses = ['Active', 'Blocked'];
+    if (!in_array($newStatus, $validStatuses)) {
+        $_SESSION['error_message'] = "Invalid status value";
+        header("Location: admin-dashboard.php#rbac");
+        exit;
+    }
+    
+    try {
+        // Update status
+        $updateStmt = $db->prepare("UPDATE users SET status = ? WHERE id = ?");
+        $result = $updateStmt->execute([$newStatus, $userId]);
+        
+        if ($result) {
+            // Log the action
+            $adminName = $_SESSION['username'] ?? 'Admin';
+            $userInfo = $userModel->getUserById($userId);
+            $actionMessage = "Changed status of user " . ($userInfo['username'] ?? "ID: $userId") . " to $newStatus";
+            $logStmt = $db->prepare("INSERT INTO maintenance_logs (admin_name, action_performed, status) VALUES (?, ?, 'Success')");
+            $logStmt->execute([$adminName, $actionMessage]);
+            
+            $statusAction = ($newStatus === 'Active') ? 'activated' : 'blocked';
+            $_SESSION['success_message'] = "User account " . $statusAction . " successfully!";
+        } else {
+            $_SESSION['error_message'] = "Failed to update user status";
+        }
+        
+    } catch (Exception $e) {
+        error_log("Update user status error: " . $e->getMessage());
+        $_SESSION['error_message'] = "Error updating status: " . $e->getMessage();
+    }
+    
+    header("Location: admin-dashboard.php#rbac");
+    exit;
+}
+// ===================================================================
+
+
+// ===================================================================
+// ✅ RBAC CREATE NEW ROLE HANDLER - FIXED
+// REPLACE YOUR EXISTING CREATE HANDLER WITH THIS
+// ===================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_management_role'])) {
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -308,8 +477,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_management_role']
         $errors[] = "Password must be at least 8 characters";
     }
     
+    // ✅ FIX: Only allow 'staff' and 'admin' roles in RBAC
     if (empty($role) || !in_array($role, ['staff', 'admin'])) {
-        $errors[] = "Please select a valid role (staff or admin)";
+        $errors[] = "Please select a valid role (staff or admin only)";
     }
 
     // Check if username already exists
@@ -338,7 +508,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_management_role']
         // Hash the password
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-        // Insert new user
+        // ✅ FIX: Insert new user with only 'staff' or 'admin' role
         $stmtUser = $db->prepare("INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, ?, 'Active')");
         $result = $stmtUser->execute([$username, $email, $hashedPassword, $role]);
 
@@ -365,6 +535,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_management_role']
         exit;
     }
 }
+// ===================================================================
+
+
+/*
+ * ============================================================================
+ * EXPLANATION OF FOREIGN KEY HANDLING
+ * ============================================================================
+ * 
+ * Your database has foreign key constraints that prevent deletion:
+ * - stock_movements.user_id references users.id
+ * - orders.user_id references users.id (possibly)
+ * - maintenance_logs might have FK constraints too
+ * 
+ * TWO APPROACHES TO FIX THIS:
+ * 
+ * APPROACH 1: SET NULL (Recommended - Preserves Data)
+ * -------------------------------------------------------
+ * Before deleting the user, we update related tables to set user_id = NULL
+ * This keeps historical records but removes the user reference
+ * 
+ * Example:
+ *   UPDATE stock_movements SET user_id = NULL WHERE user_id = ?
+ *   UPDATE orders SET user_id = NULL WHERE user_id = ?
+ * 
+ * Pros: Historical data preserved, no data loss
+ * Cons: You'll see NULL in user_id fields for deleted users
+ * 
+ * 
+ * APPROACH 2: CASCADE DELETE (Use with Caution)
+ * -------------------------------------------------------
+ * Delete all related records before deleting the user
+ * 
+ * Example:
+ *   DELETE FROM stock_movements WHERE user_id = ?
+ *   DELETE FROM orders WHERE user_id = ?
+ * 
+ * Pros: Clean deletion, no orphaned data
+ * Cons: Permanent data loss, cannot recover history
+ * 
+ * 
+ * CURRENT IMPLEMENTATION: Uses APPROACH 1 (SET NULL)
+ * 
+ * 
+ * ============================================================================
+ * DATABASE SCHEMA RECOMMENDATION
+ * ============================================================================
+ * 
+ * You can also fix this at the database level by modifying the FK constraints:
+ * 
+ * ALTER TABLE stock_movements 
+ * DROP FOREIGN KEY stock_movements_ibfk_2;
+ * 
+ * ALTER TABLE stock_movements 
+ * ADD CONSTRAINT stock_movements_ibfk_2 
+ * FOREIGN KEY (user_id) REFERENCES users(id) 
+ * ON DELETE SET NULL ON UPDATE CASCADE;
+ * 
+ * This tells MySQL to automatically set user_id to NULL when a user is deleted.
+ * 
+ * Repeat for all tables with FK to users:
+ * - stock_movements
+ * - orders
+ * - maintenance_logs (if applicable)
+ * - any other tables
+ * 
+ * ============================================================================
+ */
 // ===================================================================
 
 
@@ -1138,14 +1375,17 @@ document.addEventListener('DOMContentLoaded', loadMaintLogs);
                         <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr class="text-muted small text-uppercase">
-                                    <th class="border-0 ps-0">Backup Date</th>
+                                    <th class="border-0 ps-0">Admin</th>
+                                    <th class="border-0">Role</th>
+                                    <th class="border-0">Backup Date</th>
                                     <th class="border-0">Filename</th>
                                     <th class="border-0">File Size</th>
                                     <th class="border-0 text-end pe-0">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="backupHistoryBody">
-                                </tbody>
+                                <!-- Populated by JavaScript -->
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -1160,6 +1400,44 @@ document.addEventListener('DOMContentLoaded', loadMaintLogs);
     #backupHistoryBody tr:hover { background-color: rgba(0,0,0,0.01); }
     .btn-outline-primary:hover { background-color: #f0f7ff; color: #0d6efd; }
     .font-monospace { font-family: 'Courier New', Courier, monospace; }
+    
+    /* Role badge styles */
+    .role-badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: inline-block;
+    }
+    .role-admin {
+        background-color: #e7f1ff;
+        color: #0d6efd;
+        border: 1px solid #b6d4fe;
+    }
+    .role-staff {
+        background-color: #fff3cd;
+        color: #997404;
+        border: 1px solid #ffe69c;
+    }
+    
+    /* Admin avatar styles */
+    .backup-admin-avatar {
+        width: 32px;
+        height: 32px;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+    .backup-admin-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: #e7f1ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 </style>
 
 
@@ -1306,7 +1584,7 @@ document.addEventListener('DOMContentLoaded', loadMaintLogs);
                                                             <li>
                                                                 <form method="POST">
                                                                     <input type="hidden" name="user_id" value="<?= $user_id ?>">
-                                                                    <button type="submit" name="delete_user" class="dropdown-item text-danger" onclick="return confirm('Delete permanently?')">
+                                                                    <button type="submit" name="delete_admin_user" class="dropdown-item text-danger" onclick="return confirm('Delete permanently?')">
                                                                         <i class="bi bi-trash me-2"></i>Delete Account
                                                                     </button>
                                                                 </form>
@@ -6288,132 +6566,172 @@ function triggerBackup() {
         });
 }
 
-// DATABASE BACKUP
-// Load history when the page opens
+// DATABASE BACKUP - Load history when the page opens
 document.addEventListener('DOMContentLoaded', function() {
-    loadBackupHistory();
+    if (document.getElementById('backupHistoryBody')) {
+        loadBackupHistory();
+    }
 });
 
-function loadBackupHistory() {
-    const handlerUrl = 'actions/backup_handler.php';
-    
-    fetch(handlerUrl + '?action=list')
-        .then(res => res.json())
-        .then(data => {
-            if (data.status === 'success') {
-                // UPDATE THE NEW LABELS
-                document.getElementById('lastBackupDate').innerText = data.backups.length > 0 ? data.backups[0].date : "Never";
-                document.getElementById('lastBackupAdmin').innerText = data.last_admin || "System";
-
-                // UPDATE THE PROGRESS BAR & COUNT
-                const count = data.backups.length;
-                const maxBackups = 5;
-                document.getElementById('backupCount').innerText = `${count} / ${maxBackups}`;
-                
-                const percentage = (count / maxBackups) * 100;
-                document.getElementById('storageBar').style.width = percentage + '%';
-
-                // Fill your table as usual...
-                const tbody = document.getElementById('backupHistoryBody');
-                // ... table logic here ...
-            }
-        });
-}
-
-// Update your button function to refresh the table
-function handleBackupGeneration() {
-    const btn = document.getElementById('btnBackup');
-    const handlerUrl = 'actions/backup_handler.php';
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
-
-    fetch(handlerUrl + '?action=generate')
-        .then(res => res.json())
-        .then(data => {
-            if (data.status === 'success') {
-                // Refresh the table and download
-                loadBackupHistory();
-                window.location.href = handlerUrl + '?action=download&file=' + data.filename;
-                
-                setTimeout(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-cloud-download me-2"></i>Backup Database';
-                }, 2000);
-            }
-        });
-}
-
-// Located inside admin-dashboard.php <script> block
-function handleBackupGeneration() {
-    const btn = document.getElementById('btnBackup');
-    const status = document.getElementById('backupStatus');
-    
-    // This is the path we just verified works!
-    const handlerUrl = 'actions/backup_handler.php'; 
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Downloading...';
-
-    fetch(handlerUrl + '?action=generate')
-        .then(res => res.json())
-        .then(data => {
-            if (data.status === 'success') {
-                status.innerHTML = '<div class="alert alert-success py-2 mt-2">Backup Successful!</div>';
-                
-                // This triggers the actual file download to your computer
-                window.location.href = handlerUrl + '?action=download&file=' + data.filename;
-                
-                setTimeout(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-cloud-download me-2"></i>Backup Database';
-                }, 3000);
-            } else {
-                alert("Error: " + data.message);
-                btn.disabled = false;
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert("Connection error. Try pressing CTRL+F5 to refresh.");
-            btn.disabled = false;
-        });
-}
-
-// Specific RBAC for Backup Section
-
-document.addEventListener('DOMContentLoaded', loadBackupHistory);
-
+// Updated: Load backup history with admin and role info
 function loadBackupHistory() {
     const handlerUrl = 'actions/backup_handler.php';
     const tbody = document.getElementById('backupHistoryBody');
     const badge = document.getElementById('lastBackupBadge');
 
+    if (!tbody) return; // Exit if element doesn't exist
+
     fetch(handlerUrl + '?action=list')
         .then(res => res.json())
         .then(data => {
-            if (data.status === 'success' && data.backups.length > 0) {
-                badge.innerHTML = `<i class="bi bi-clock-history me-1"></i> Last activity: ${data.backups[0].date}`;
+            if (data.status === 'success') {
+                // Update last backup date if element exists
+                if (document.getElementById('lastBackupDate')) {
+                    document.getElementById('lastBackupDate').innerText = 
+                        data.backups.length > 0 ? data.backups[0].date : "Never";
+                }
+                
+                // Update badge
+                if (badge) {
+                    badge.innerHTML = data.backups.length > 0 
+                        ? `<i class="bi bi-clock-history me-1"></i> Last: ${data.backups[0].date}` 
+                        : 'No backups found';
+                }
+                
+                // Clear and populate table
                 tbody.innerHTML = '';
                 
-                data.backups.forEach(file => {
-                    tbody.innerHTML += `
+                if (data.backups.length === 0) {
+                    tbody.innerHTML = `
                         <tr>
-                            <td class="ps-0 py-3 fw-bold text-dark">${file.date}</td>
-                            <td><span class="text-muted font-monospace small">${file.name}</span></td>
-                            <td><span class="badge bg-light text-dark border-0">${file.size}</span></td>
-                            <td class="pe-0 text-end">
-                                <a href="${handlerUrl}?action=download&file=${file.name}" 
-                                   class="btn btn-sm btn-outline-primary border-0 rounded-pill px-3">
-                                    <i class="bi bi-download me-1"></i> Download
-                                </a>
+                            <td colspan="6" class="text-center text-muted py-5">
+                                <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                                No backup history found. Click "Generate & Download Backup" to create one.
                             </td>
-                        </tr>`;
-                });
+                        </tr>
+                    `;
+                } else {
+                    data.backups.forEach(backup => {
+                        // Determine role badge style
+                        const roleClass = backup.role === 'admin' ? 'role-admin' : 'role-staff';
+                        const roleText = backup.role ? backup.role.toUpperCase() : 'ADMIN';
+                        
+                        // Admin avatar or default icon
+                        let avatarHtml = '';
+                        if (backup.profile_pic) {
+                            avatarHtml = `<img src="/E-COMMERCE/public/uploads/${backup.profile_pic}" 
+                                              alt="${backup.created_by}" 
+                                              class="backup-admin-avatar me-2">`;
+                        } else {
+                            avatarHtml = `<div class="backup-admin-icon me-2">
+                                              <i class="bi bi-person-fill text-primary"></i>
+                                          </div>`;
+                        }
+                        
+                        const row = `
+                            <tr>
+                                <td class="ps-0 py-3">
+                                    <div class="d-flex align-items-center">
+                                        ${avatarHtml}
+                                        <span class="fw-medium text-dark">${backup.created_by || 'Unknown'}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="role-badge ${roleClass}">${roleText}</span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar3 me-1"></i>${backup.date}
+                                    </small>
+                                </td>
+                                <td>
+                                    <span class="text-muted font-monospace small">${backup.filename}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">${backup.size}</span>
+                                </td>
+                                <td class="pe-0 text-end">
+                                    <a href="${handlerUrl}?action=download&file=${backup.filename}" 
+                                       class="btn btn-sm btn-outline-primary border-0 rounded-pill px-3">
+                                        <i class="bi bi-download me-1"></i> Download
+                                    </a>
+                                </td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
+                    });
+                }
             } else {
-                badge.innerText = "No backups found";
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-muted">No backups found. Click generate to create one.</td></tr>';
+                console.error('Failed to load backup history:', data.message);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-danger py-4">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Error loading backup history
+                        </td>
+                    </tr>
+                `;
             }
+        })
+        .catch(error => {
+            console.error('Error fetching backup history:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-danger py-4">
+                        <i class="bi bi-wifi-off me-2"></i>
+                        Connection error. Please refresh the page.
+                    </td>
+                </tr>
+            `;
+        });
+}
+
+// Updated: Handle backup generation with status updates
+function handleBackupGeneration() {
+    const btn = document.getElementById('btnBackup');
+    const status = document.getElementById('backupStatus');
+    const handlerUrl = 'actions/backup_handler.php';
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+    
+    if (status) {
+        status.innerHTML = '<span class="text-info"><i class="bi bi-hourglass-split me-1"></i>Creating backup...</span>';
+    }
+
+    fetch(handlerUrl + '?action=generate')
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                if (status) {
+                    status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Success! Downloading...</span>';
+                }
+                
+                // Refresh the table to show new backup
+                loadBackupHistory();
+                
+                // Trigger download
+                window.location.href = handlerUrl + '?action=download&file=' + data.filename;
+                
+                // Clear status after 3 seconds
+                setTimeout(() => {
+                    if (status) status.innerHTML = '';
+                }, 3000);
+            } else {
+                if (status) {
+                    status.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${data.message}</span>`;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Backup error:', error);
+            if (status) {
+                status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Network error occurred</span>';
+            }
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cloud-download me-2"></i>Generate & Download Backup';
         });
 }
 

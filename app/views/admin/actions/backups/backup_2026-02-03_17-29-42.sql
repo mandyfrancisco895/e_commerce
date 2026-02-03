@@ -29,6 +29,34 @@ CREATE TABLE `audit_logs` (
 
 
 
+CREATE TABLE `backup_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `filename` varchar(255) NOT NULL,
+  `created_by_user_id` int(11) NOT NULL,
+  `created_by_username` varchar(100) NOT NULL,
+  `created_by_role` enum('admin','staff','user') NOT NULL,
+  `file_size` bigint(20) DEFAULT NULL COMMENT 'File size in bytes',
+  `backup_path` varchar(500) DEFAULT NULL,
+  `status` enum('success','failed','deleted') DEFAULT 'success',
+  `ip_address` varchar(45) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_created_by` (`created_by_user_id`),
+  KEY `idx_filename` (`filename`),
+  KEY `idx_created_at` (`created_at`),
+  KEY `idx_backup_logs_role` (`created_by_role`),
+  CONSTRAINT `fk_backup_user` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO backup_logs VALUES("1","backup_2026-02-03_12-44-18.sql","30","Gab","admin","37462","C:\\xampp\\htdocs\\E-commerce\\app\\views\\admin\\actions/backups/backup_2026-02-03_12-44-18.sql","deleted","::1","2026-02-03 12:44:18");
+INSERT INTO backup_logs VALUES("2","backup_2026-02-03_17-25-56.sql","30","Gab","admin","38459","C:\\xampp\\htdocs\\E-commerce\\app\\views\\admin\\actions/backups/backup_2026-02-03_17-25-56.sql","deleted","::1","2026-02-03 17:25:56");
+INSERT INTO backup_logs VALUES("3","backup_2026-02-03_17-27-28.sql","137","mandy","admin","38826","C:\\xampp\\htdocs\\E-commerce\\app\\views\\admin\\actions/backups/backup_2026-02-03_17-27-28.sql","success","::1","2026-02-03 17:27:28");
+INSERT INTO backup_logs VALUES("4","backup_2026-02-03_17-27-34.sql","137","mandy","admin","39063","C:\\xampp\\htdocs\\E-commerce\\app\\views\\admin\\actions/backups/backup_2026-02-03_17-27-34.sql","success","::1","2026-02-03 17:27:34");
+INSERT INTO backup_logs VALUES("5","backup_2026-02-03_17-27-35.sql","137","mandy","admin","39300","C:\\xampp\\htdocs\\E-commerce\\app\\views\\admin\\actions/backups/backup_2026-02-03_17-27-35.sql","success","::1","2026-02-03 17:27:35");
+INSERT INTO backup_logs VALUES("6","backup_2026-02-03_17-27-42.sql","137","mandy","admin","39537","C:\\xampp\\htdocs\\E-commerce\\app\\views\\admin\\actions/backups/backup_2026-02-03_17-27-42.sql","success","::1","2026-02-03 17:27:42");
+INSERT INTO backup_logs VALUES("7","backup_2026-02-03_17-27-42.sql","137","mandy","admin","39774","C:\\xampp\\htdocs\\E-commerce\\app\\views\\admin\\actions/backups/backup_2026-02-03_17-27-42.sql","success","::1","2026-02-03 17:27:42");
+
+
 CREATE TABLE `categories` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
@@ -57,7 +85,7 @@ CREATE TABLE `login_attempts` (
   KEY `idx_identifier` (`identifier`),
   KEY `idx_ip_address` (`ip_address`),
   KEY `idx_attempt_time` (`attempt_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=89 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=95 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO login_attempts VALUES("32","mlbbplays7@gmail.com","::1","2026-01-14 11:13:25","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36");
 INSERT INTO login_attempts VALUES("33","mlbbplays7@gmail.com","::1","2026-01-14 11:32:43","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36");
@@ -69,8 +97,6 @@ INSERT INTO login_attempts VALUES("53","mandyfrancsico895@gmail.com","::1","2026
 INSERT INTO login_attempts VALUES("54","mandyfrancsico895@gmail.com","::1","2026-01-25 11:23:10","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
 INSERT INTO login_attempts VALUES("55","mandyfrancsico895@gmail.com","::1","2026-01-25 11:24:34","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
 INSERT INTO login_attempts VALUES("59","mandyfrance895@gmail.com","::1","2026-01-28 21:59:41","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
-INSERT INTO login_attempts VALUES("60","staff123@gmail.com","::1","2026-01-28 22:13:49","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36");
-INSERT INTO login_attempts VALUES("61","staff123@gmail.com","::1","2026-01-28 22:14:23","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36");
 INSERT INTO login_attempts VALUES("62","aiahdizon18@gmail.com","::1","2026-01-28 22:17:47","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36");
 INSERT INTO login_attempts VALUES("64","admin3321@gmail.com","::1","2026-01-29 17:21:07","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36");
 INSERT INTO login_attempts VALUES("65","admin76432321@gmail.com","::1","2026-01-29 17:31:46","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36");
@@ -95,11 +121,27 @@ CREATE TABLE `maintenance_logs` (
   `status` varchar(50) DEFAULT 'Success',
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO maintenance_logs VALUES("1","Gab","Created new admin account: mandy","Success","2026-01-29 00:23:00");
 INSERT INTO maintenance_logs VALUES("2","Gab","Created new account: STAFFTRY (Role: Staff)","Success","2026-02-02 15:19:37");
 INSERT INTO maintenance_logs VALUES("3","Gab","Created new account: try1 (Role: Staff)","Success","2026-02-02 15:27:07");
+INSERT INTO maintenance_logs VALUES("4","Gab","Created new Staff account: ihaihafiaifhia","Success","2026-02-02 22:38:01");
+INSERT INTO maintenance_logs VALUES("5","Gab","Created new Staff account: gab4","Success","2026-02-02 22:38:33");
+INSERT INTO maintenance_logs VALUES("6","Gab","Created new Admin account: admin3214","Success","2026-02-02 22:47:37");
+INSERT INTO maintenance_logs VALUES("7","Gab","Created new Staff account: TRYMANDY","Success","2026-02-02 22:58:08");
+INSERT INTO maintenance_logs VALUES("8","Gab","Created new Staff account: try1111","Success","2026-02-02 23:10:08");
+INSERT INTO maintenance_logs VALUES("9","Gab","Created new Staff account: trystaff","Success","2026-02-02 23:11:01");
+INSERT INTO maintenance_logs VALUES("10","Gab","Created new Staff account: dwfsf","Success","2026-02-03 00:43:10");
+INSERT INTO maintenance_logs VALUES("11","Gab","Created new Staff account: fsfs","Success","2026-02-03 01:36:04");
+INSERT INTO maintenance_logs VALUES("12","Gab","Created new Staff account: dsdsds","Success","2026-02-03 02:00:38");
+INSERT INTO maintenance_logs VALUES("13","Gab","Created new Staff account: dsds","Success","2026-02-03 02:05:59");
+INSERT INTO maintenance_logs VALUES("14","Gab","Deleted Staff account: dsds (ID: 134)","Success","2026-02-03 17:22:51");
+INSERT INTO maintenance_logs VALUES("15","Gab","Created new Staff account: osafmaomfoamfa","Success","2026-02-03 17:23:10");
+INSERT INTO maintenance_logs VALUES("16","Gab","Deleted Staff account: trystaff (ID: 130)","Success","2026-02-03 17:23:14");
+INSERT INTO maintenance_logs VALUES("17","Gab","Deleted Admin account: mandy (ID: 91)","Success","2026-02-03 17:26:44");
+INSERT INTO maintenance_logs VALUES("18","Gab","Deleted Admin account: admin3214 (ID: 127)","Success","2026-02-03 17:26:47");
+INSERT INTO maintenance_logs VALUES("19","Gab","Created new Admin account: mandy","Success","2026-02-03 17:27:03");
 
 
 CREATE TABLE `order_items` (
@@ -119,9 +161,6 @@ CREATE TABLE `order_items` (
   CONSTRAINT `order_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=94 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
-INSERT INTO order_items VALUES("85","58","127","Graphical shirt","500.00","1",NULL,"500.00","2026-01-25 10:09:26");
-INSERT INTO order_items VALUES("86","58","125","Rich Boyz Shirt","700.00","1",NULL,"700.00","2026-01-25 10:09:26");
-INSERT INTO order_items VALUES("89","59","125","Rich Boyz Shirt","700.00","1",NULL,"700.00","2026-01-25 10:59:24");
 
 
 CREATE TABLE `orders` (
@@ -141,8 +180,6 @@ CREATE TABLE `orders` (
   CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
-INSERT INTO orders VALUES("58","53","ORD-20260125-69757B5671005","2600.00","pending","62134 makati mercedes city","Cash on Delivery (COD)","pending","2026-01-25 10:09:26","2026-01-25 10:09:26");
-INSERT INTO orders VALUES("59","53","ORD-20260125-6975870C72211","4200.00","pending","62134 makati mercedes city","Cash on Delivery (COD)","pending","2026-01-25 10:59:24","2026-01-25 10:59:24");
 
 
 CREATE TABLE `password_resets` (
@@ -197,7 +234,7 @@ CREATE TABLE `products` (
   PRIMARY KEY (`id`),
   KEY `category_id` (`category_id`),
   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=135 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=138 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 INSERT INTO products VALUES("114","Round Bonet","A round bonnet is a circular head covering that fits neatly around the head, used for style or protection.","400.00","S,M,L","acc-1.jpg","5","2025-10-11 20:47:27","20","active");
 INSERT INTO products VALUES("115","Cap","A round cap is a simple, circular headwear that fits closely on the head for comfort and style.","500.00","S,XL","acc-2.jpg","5","2025-10-11 20:48:29","15","active");
@@ -211,9 +248,8 @@ INSERT INTO products VALUES("122","Track Suit","A tracksuit is a matching set of
 INSERT INTO products VALUES("123","Leather Jacket","A leather jacket is a stylish outerwear made from leather, known for its durability and edgy look.","799.00","S,L","fit-outwear-11.jpg","15","2025-10-11 21:06:13","21","active");
 INSERT INTO products VALUES("124","Polo Jacket","A polo jacket is a lightweight, collared jacket inspired by polo shirts, offering a neat and casual look.","5000.00","S,L","fit-outwear-12(front).jpg","16","2025-10-11 21:07:22","70","active");
 INSERT INTO products VALUES("125","Rich Boyz Shirt","A shirt is a garment worn on the upper body, usually with a collar, sleeves, and buttons on the front.","700.00","S,M","fit-1.jpg","11","2025-10-11 21:09:02","47","active");
-INSERT INTO products VALUES("126","Floral Shirt","A floral t-shirt is a casual shirt featuring flower patterns, adding a fresh and stylish look.","600.00","S,M","fit-3.jpg","11","2025-10-11 21:10:05","28","active");
-INSERT INTO products VALUES("127","Graphical shirt","A graphical shirt is a t-shirt featuring printed designs, images, or text for a trendy, expressive style.","500.00","S,L,XL","fit-outwear-6.jpg","15","2025-10-11 21:11:04","171","active");
-INSERT INTO products VALUES("134","t-shirt","try lang","1000.00","S,M,L","1e53b7d0-a434-42ed-8285-44b85a90da1e.jpg","16","2026-02-02 17:48:56","268","active");
+INSERT INTO products VALUES("126","Floral Shirt","A floral t-shirt is a casual shirt featuring flower patterns, adding a fresh and stylish look.","600.00","S,M","fit-3.jpg","11","2025-10-11 21:10:05","4506","active");
+INSERT INTO products VALUES("127","Graphical shirt121","A graphical shirt is a t-shirt featuring printed designs, images, or text for a trendy, expressive style.","500.00","S,L,XL","fit-outwear-6.jpg","15","2025-10-11 21:11:04","2568","active");
 
 
 CREATE TABLE `registration_otps` (
@@ -226,7 +262,7 @@ CREATE TABLE `registration_otps` (
   PRIMARY KEY (`id`),
   KEY `idx_registration_email_otp` (`email`,`otp_code`,`used`),
   KEY `idx_registration_expiration` (`expiration`)
-) ENGINE=InnoDB AUTO_INCREMENT=36 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=37 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 INSERT INTO registration_otps VALUES("2","ecommercebsit2025@gmailcom","534026","2025-11-23 19:12:11","0","2025-11-23 19:02:11");
 INSERT INTO registration_otps VALUES("3","ecommercebsit2025@gmail.com","166920","2025-11-23 19:13:20","0","2025-11-23 19:03:20");
@@ -262,6 +298,7 @@ INSERT INTO registration_otps VALUES("32","gabrielvargas0423@gmail.com","193573"
 INSERT INTO registration_otps VALUES("33","mandyfrance84@gmail.com","773558","2026-01-25 10:43:24","1","2026-01-25 10:33:24");
 INSERT INTO registration_otps VALUES("34","mandyfrance84@gmail.com","256053","2026-01-25 10:53:48","1","2026-01-25 10:43:48");
 INSERT INTO registration_otps VALUES("35","mandyfrance84@gmail.com","565115","2026-01-25 11:27:17","1","2026-01-25 11:17:17");
+INSERT INTO registration_otps VALUES("36","mandyfrancisco895@gmail.com","587513","2026-02-03 13:14:45","1","2026-02-03 13:04:45");
 
 
 CREATE TABLE `stock_movements` (
@@ -278,7 +315,7 @@ CREATE TABLE `stock_movements` (
   KEY `stock_movements_ibfk_1` (`product_id`),
   CONSTRAINT `stock_movements_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
   CONSTRAINT `stock_movements_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=84 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=104 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 INSERT INTO stock_movements VALUES("14","127","","10","sample","Bulk operation: add by 10","30","2025-10-11 23:15:36");
 INSERT INTO stock_movements VALUES("15","126","","10","sample","Bulk operation: add by 10","30","2025-10-11 23:15:36");
@@ -323,9 +360,21 @@ INSERT INTO stock_movements VALUES("61","120","","1","sale","Bulk operation: add
 INSERT INTO stock_movements VALUES("67","127","","20","sale","Bulk operation: add by 20","30","2025-10-16 20:48:34");
 INSERT INTO stock_movements VALUES("72","127","add","123","restock","12","30","2026-02-02 16:41:12");
 INSERT INTO stock_movements VALUES("73","126","add","1","restock","1","30","2026-02-02 16:41:52");
-INSERT INTO stock_movements VALUES("81","134","set","123","quick_adjustment","Quick adjustment via inventory table","123","2026-02-02 17:53:07");
-INSERT INTO stock_movements VALUES("82","134","set","34","quick_adjustment","Quick adjustment via inventory table","123","2026-02-02 17:53:14");
-INSERT INTO stock_movements VALUES("83","134","add","234","sale","f","123","2026-02-02 17:53:26");
+INSERT INTO stock_movements VALUES("89","127","set","234","quick_adjustment","Quick adjustment via inventory table","30","2026-02-03 00:45:33");
+INSERT INTO stock_movements VALUES("90","127","add","2345","sale","f","30","2026-02-03 00:45:42");
+INSERT INTO stock_movements VALUES("91","127","set","244","quick_adjustment","Quick adjustment via inventory table",NULL,"2026-02-03 00:46:25");
+INSERT INTO stock_movements VALUES("92","126","add","234","sale","d",NULL,"2026-02-03 00:46:36");
+INSERT INTO stock_movements VALUES("93","127","add","1245","restock","rwrwr",NULL,"2026-02-03 00:46:51");
+INSERT INTO stock_movements VALUES("94","127","set","234","quick_adjustment","Quick adjustment via inventory table",NULL,"2026-02-03 01:00:48");
+INSERT INTO stock_movements VALUES("95","126","add","4244","restock","",NULL,"2026-02-03 01:01:01");
+INSERT INTO stock_movements VALUES("96","127","add","2345","restock","2",NULL,"2026-02-03 01:01:22");
+INSERT INTO stock_movements VALUES("97","127","add","23455","restock","2",NULL,"2026-02-03 01:06:05");
+INSERT INTO stock_movements VALUES("98","127","set","13","quick_adjustment","Quick adjustment via inventory table",NULL,"2026-02-03 01:06:09");
+INSERT INTO stock_movements VALUES("99","127","set","134","quick_adjustment","Quick adjustment via inventory table",NULL,"2026-02-03 01:33:43");
+INSERT INTO stock_movements VALUES("100","127","set","356","quick_adjustment","Quick adjustment via inventory table",NULL,"2026-02-03 02:03:13");
+INSERT INTO stock_movements VALUES("101","127","set","123","quick_adjustment","Quick adjustment via inventory table",NULL,"2026-02-03 02:04:49");
+INSERT INTO stock_movements VALUES("102","127","set","1234","quick_adjustment","Quick adjustment via inventory table","136","2026-02-03 17:24:42");
+INSERT INTO stock_movements VALUES("103","127","add","1334","restock","23","136","2026-02-03 17:24:53");
 
 
 CREATE TABLE `system_audit_logs` (
@@ -337,18 +386,16 @@ CREATE TABLE `system_audit_logs` (
   `status` varchar(50) DEFAULT 'Success',
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=551 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=584 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO system_audit_logs VALUES("541","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-02T03:44",NULL,"Completed","2026-02-02 00:44:52");
-INSERT INTO system_audit_logs VALUES("542","System Status Update","Gab","Maintenance: OFF | Recovery: Not Specified",NULL,"Completed","2026-02-02 00:44:57");
-INSERT INTO system_audit_logs VALUES("543","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-02T02:21",NULL,"Completed","2026-02-02 01:21:15");
-INSERT INTO system_audit_logs VALUES("544","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-02T12:54",NULL,"Completed","2026-02-02 11:54:26");
-INSERT INTO system_audit_logs VALUES("545","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-02T12:54",NULL,"Completed","2026-02-02 11:54:58");
-INSERT INTO system_audit_logs VALUES("546","System Status Update","Gab","Maintenance: OFF | Recovery: Not Specified",NULL,"Completed","2026-02-02 11:55:17");
-INSERT INTO system_audit_logs VALUES("547","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-02T14:55",NULL,"Completed","2026-02-02 11:55:32");
-INSERT INTO system_audit_logs VALUES("548","System Status Update","Gab","Maintenance: OFF | Recovery: Not Specified",NULL,"Completed","2026-02-02 11:56:32");
-INSERT INTO system_audit_logs VALUES("549","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-02T12:56",NULL,"Completed","2026-02-02 11:56:44");
-INSERT INTO system_audit_logs VALUES("550","System Status Update","Gab","Maintenance: OFF | Recovery: Not Specified",NULL,"Completed","2026-02-02 11:57:20");
+INSERT INTO system_audit_logs VALUES("576","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-03T00:49",NULL,"Completed","2026-02-02 21:49:36");
+INSERT INTO system_audit_logs VALUES("577","System Status Update","Gab","Maintenance: OFF | Recovery: Not Specified",NULL,"Completed","2026-02-02 21:49:40");
+INSERT INTO system_audit_logs VALUES("578","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-03T01:01",NULL,"Completed","2026-02-02 22:01:12");
+INSERT INTO system_audit_logs VALUES("579","Test Operation","Admin User","This is a test log entry",NULL,"Completed","2026-02-02 22:02:38");
+INSERT INTO system_audit_logs VALUES("580","System Status Update","Gab","Maintenance: OFF | Recovery: Not Specified",NULL,"Completed","2026-02-02 22:04:18");
+INSERT INTO system_audit_logs VALUES("581","System Status Update","Gab","Maintenance: OFF | Recovery: 2026-02-03T01:46",NULL,"Completed","2026-02-02 22:46:34");
+INSERT INTO system_audit_logs VALUES("582","System Status Update","Gab","Maintenance: ON | Recovery: 2026-02-03T01:46",NULL,"Completed","2026-02-02 22:46:42");
+INSERT INTO system_audit_logs VALUES("583","System Status Update","Gab","Maintenance: OFF | Recovery: Not Specified",NULL,"Completed","2026-02-02 22:46:48");
 
 
 CREATE TABLE `system_settings` (
@@ -358,13 +405,13 @@ CREATE TABLE `system_settings` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `setting_key` (`setting_key`)
-) ENGINE=InnoDB AUTO_INCREMENT=1841 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1934 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO system_settings VALUES("1","store_name","Empire - Shop","2026-01-25 16:59:25");
-INSERT INTO system_settings VALUES("2","maintenance_mode","0","2026-02-02 11:57:20");
-INSERT INTO system_settings VALUES("23","maint_message","","2026-02-02 11:57:20");
+INSERT INTO system_settings VALUES("2","maintenance_mode","0","2026-02-02 22:46:48");
+INSERT INTO system_settings VALUES("23","maint_message","","2026-02-02 22:46:48");
 INSERT INTO system_settings VALUES("24","ip_whitelist","","2026-01-26 01:12:51");
-INSERT INTO system_settings VALUES("25","recovery_time","","2026-02-02 11:57:20");
+INSERT INTO system_settings VALUES("25","recovery_time","","2026-02-02 22:46:48");
 INSERT INTO system_settings VALUES("540","maint_start_time","2026-01-28 00:13:07","2026-01-28 00:13:07");
 
 
@@ -397,17 +444,11 @@ CREATE TABLE `users` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=125 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=138 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
-INSERT INTO users VALUES("30","Gab","admin321@gmail.com","$2y$10$kLMBHM8ilzpdN4pSemAqruacxDdb9WtZTOEIL81n5cU2PETKAWngS","admin","Active","2025-09-07 00:05:08","09938433970","sample","profile_30_1770004085.jpg");
-INSERT INTO users VALUES("53","Mandy Francisco","Mandyfrancisco895@gmail.com","$2y$10$4A8LjZynhivBjV2jKoH5UefwbJ/az67si4/Tc7eyfY8fHvVyeXKSy","user","Active","2025-11-23 21:06:06","09938433970","62134 makati mercedes city","1763903226_mandy.jpg");
+INSERT INTO users VALUES("30","Gab","admin321@gmail.com","$2y$10$kLMBHM8ilzpdN4pSemAqruacxDdb9WtZTOEIL81n5cU2PETKAWngS","admin","Active","2025-09-07 00:05:08",NULL,NULL,"profile_30_1770044076.jpg");
 INSERT INTO users VALUES("54","Laurence Vargas","aujscvargas@gmail.com","$2y$10$3TuAG5UQMYeRKvNYBcNRLOtbJKE1jaHB/hIBWeew2NaDarsg9mFE2","user","Active","2025-11-23 21:13:09","09938433971","731 lansones st napico manggahan pasig city ","1763903658_duds.jpg");
-INSERT INTO users VALUES("55","Haillie Geco","gecohaillie560@gmail.com","$2y$10$NBW8JWWqHNtR6WsZ/n/A8eUkITpV0D84xL9zRtpXbPGJPG7velAzS","user","Active","2025-11-23 21:16:05","09938433890","blck 8. Kasigahan St. Pasig city","1763903849_aa522e76-6c4c-4b74-a7d9-2afc6e4fa036.jpg");
-INSERT INTO users VALUES("61","Gabriel Vargas","gabrielvargas0423@gmail.com","$2y$10$YKGH/jtsfffR4p7M0oceROf/bT965iiWMQkRkueaQ2JUqSeOHGRp2","user","Active","2026-01-14 11:54:24","09938433970","62134 makati mercedes city","user");
-INSERT INTO users VALUES("91","mandy","admin4321@gmail.com","$2y$10$ryyJ4Vm3l10VhPO88hr9huQF/WJs.5U9c1jyLbR7jVmlw42r7zzi.","admin","Active","2026-01-29 00:23:00",NULL,NULL,"profile_91_1769689824.jpg");
-INSERT INTO users VALUES("114","staff","staff321@gmail.com","$2y$10$LxWxK1PFCIJFWUo6loXl0uHTcqKabnOD3P.v2dq6lKNHIL0XDPQkG","staff","Active","2026-01-31 01:26:13","","",NULL);
-INSERT INTO users VALUES("115","staff1233","stafffffffffff@gmail.com","$2y$10$qHW3btLkyi.u9hIRv5qsnu6.nnR4dk3nOqrwQNI36kPjcTPr69Tl.","staff","Active","2026-01-31 02:14:59","","",NULL);
-INSERT INTO users VALUES("118","stafff90","staff1234@gmail.com","$2y$10$vHXhd8Gr4Y7X7mzvwrJqe.S21jvpOEuNFReWQvsVgOg5469HB0u16","staff","Active","2026-01-31 23:23:06",NULL,NULL,"profile_118_1770005075.jpg");
-INSERT INTO users VALUES("119","staff123","staff123@gmail.com","$2y$10$Jv2nOIxSLxufzf8QbKCa..J/1P2ZAJrvd3E23RK8sDiplVRYwzJgS","staff","Active","2026-02-01 00:26:09","","",NULL);
-INSERT INTO users VALUES("120","staff12345","stafffffffff@gmail.com","$2y$10$UyjhCGTxibIofuHakUz/EuMG.fu4vXDF8Cqv71aAInAs0HmLvfRju","staff","Active","2026-02-01 00:27:02","","",NULL);
-INSERT INTO users VALUES("123","STAFFTRY","TRY@gmail.com","$2y$10$YDb6XtlERUoD1ks5EQzMGeNwpz0uo9ba1WiMOyvx/crQeTx7Zzba6","staff","Active","2026-02-02 15:19:37",NULL,NULL,NULL);
+INSERT INTO users VALUES("55","Haillie1 Geco","gecohaillie560@gmail.com","$2y$10$NBW8JWWqHNtR6WsZ/n/A8eUkITpV0D84xL9zRtpXbPGJPG7velAzS","user","Active","2025-11-23 21:16:05","09938433890","blck 8. Kasigahan St. Pasig city","1763903849_aa522e76-6c4c-4b74-a7d9-2afc6e4fa036.jpg");
+INSERT INTO users VALUES("135","ddaDAD","mandyfrancisco895@gmail.com","$2y$10$0okeuJsFNMSlUQLwM50mIeK0wb.7sGp.aStyVsqL4YYo0L.jQEZcy","user","Active","2026-02-03 13:05:13","","","user");
+INSERT INTO users VALUES("136","osafmaomfoamfa","osafmaomfoamfa@gmail.com","$2y$10$pgSQfb6YlVOe/OBek1nvsOaGT/Acioy1ZmyQ9uagJrokPTi3CoT0G","staff","Active","2026-02-03 17:23:10",NULL,NULL,"profile_136_1770110708.jpg");
+INSERT INTO users VALUES("137","mandy","admin4321@gmail.com","$2y$10$GiGSfdcpEFx11rItfxzee.wW789y5aVFDRgEQZucU0OCQPAQBhwS6","admin","Active","2026-02-03 17:27:03",NULL,NULL,"profile_137_1770110887.jpg");

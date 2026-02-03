@@ -163,7 +163,7 @@
                                         <input type="password" class="form-control" id="adminPassword" name="password" 
                                             placeholder="Enter your admin password" required autocomplete="new-password">
                                         <button type="button" class="password-toggle" onclick="togglePassword('adminPassword', this)">
-                                            <!-- <i class="fa fa-eye"></i> -->
+                                            <i class="fa fa-eye"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -405,6 +405,21 @@
             inputs.forEach(input => {
                 input.dispatchEvent(new Event('input', { bubbles: true }));
             });
+        }
+
+        function togglePassword(inputId, button) {
+            const passwordInput = document.getElementById(inputId);
+            const icon = button.querySelector('i');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
         }
 
    
