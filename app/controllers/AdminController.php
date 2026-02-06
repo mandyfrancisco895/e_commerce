@@ -1,15 +1,17 @@
 <?php
 
-class AdminController {
+class AdminController
+{
     private $db;
     private $product;
     private $user;
     private $category;
     private $order;
-    
-    public function __construct($database) {
+
+    public function __construct($database)
+    {
         $this->db = $database->getConnection();
-        
+
         // Initialize models
         $this->product = new Product($this->db);
         $this->user = new User($this->db);
@@ -24,11 +26,12 @@ class AdminController {
     /**
      * Get all products with enhanced display information
      */
-    public function getAllProducts() {
+    public function getAllProducts()
+    {
         try {
             $productsResult = $this->product->readAll();
             $products = [];
-            
+
             if ($productsResult) {
                 while ($row = $productsResult->fetch(PDO::FETCH_ASSOC)) {
                     // Enhanced status display logic
@@ -42,11 +45,11 @@ class AdminController {
                         $row['status_display'] = $row['status'];
                         $row['status_reason'] = '';
                     }
-                    
+
                     $products[] = $row;
                 }
             }
-            
+
             return $products;
         } catch (Exception $e) {
             error_log("AdminController::getAllProducts() - " . $e->getMessage());
@@ -57,17 +60,18 @@ class AdminController {
     /**
      * Get only active products (for customer-facing operations)
      */
-    public function getActiveProducts() {
+    public function getActiveProducts()
+    {
         try {
             $productsResult = $this->product->readActiveProducts();
             $products = [];
-            
+
             if ($productsResult) {
                 while ($row = $productsResult->fetch(PDO::FETCH_ASSOC)) {
                     $products[] = $row;
                 }
             }
-            
+
             return $products;
         } catch (Exception $e) {
             error_log("AdminController::getActiveProducts() - " . $e->getMessage());
@@ -78,7 +82,8 @@ class AdminController {
     /**
      * Create a new product with business rule validation
      */
-    public function createProduct($data) {
+    public function createProduct($data)
+    {
         try {
             // Validate required fields
             $required = ['name', 'description', 'price', 'category_id', 'stock'];
@@ -92,7 +97,7 @@ class AdminController {
             if (!is_numeric($data['price']) || $data['price'] <= 0) {
                 return ['success' => false, 'message' => 'Price must be a valid positive number'];
             }
-            
+
             if (!is_numeric($data['stock']) || $data['stock'] < 0) {
                 return ['success' => false, 'message' => 'Stock must be a valid non-negative number'];
             }
@@ -130,7 +135,8 @@ class AdminController {
     /**
      * Update an existing product
      */
-    public function updateProduct($id, $data) {
+    public function updateProduct($id, $data)
+    {
         try {
             // Check if product exists
             $existingProduct = $this->product->getById($id);
@@ -150,7 +156,7 @@ class AdminController {
             if (!is_numeric($data['price']) || $data['price'] <= 0) {
                 return ['success' => false, 'message' => 'Price must be a valid positive number'];
             }
-            
+
             if (!is_numeric($data['stock']) || $data['stock'] < 0) {
                 return ['success' => false, 'message' => 'Stock must be a valid non-negative number'];
             }
@@ -183,7 +189,8 @@ class AdminController {
     /**
      * Delete a product
      */
-    public function deleteProduct($id) {
+    public function deleteProduct($id)
+    {
         try {
             $product = $this->product->getById($id);
             if (!$product) {
@@ -191,7 +198,7 @@ class AdminController {
             }
 
             $result = $this->product->delete($id);
-            
+
             if ($result) {
                 $this->setRefreshFlag();
                 return ['success' => true, 'message' => 'Product deleted successfully'];
@@ -212,16 +219,17 @@ class AdminController {
     /**
      * Get all categories with product count
      */
-    public function getAllCategories() {
+    public function getAllCategories()
+    {
         try {
             $categories = $this->category->readAll();
-            
+
             // Add product count to each category
             foreach ($categories as &$category) {
                 $category['product_count'] = $this->category->countProducts($category['id']);
                 $category['total_product_count'] = $this->category->countAllProducts($category['id']);
             }
-            
+
             return $categories;
         } catch (Exception $e) {
             error_log("AdminController::getAllCategories() - " . $e->getMessage());
@@ -232,10 +240,11 @@ class AdminController {
     /**
      * Get only active categories
      */
-    public function getActiveCategories() {
+    public function getActiveCategories()
+    {
         try {
             $allCategories = $this->category->readAll();
-            return array_filter($allCategories, function($cat) {
+            return array_filter($allCategories, function ($cat) {
                 return $cat['status'] === 'active';
             });
         } catch (Exception $e) {
@@ -247,7 +256,8 @@ class AdminController {
     /**
      * Create a new category
      */
-    public function createCategory($data) {
+    public function createCategory($data)
+    {
         try {
             // Validate required fields
             if (empty($data['name'])) {
@@ -275,7 +285,8 @@ class AdminController {
     /**
      * Update a category and handle product status changes
      */
-    public function updateCategory($id, $data) {
+    public function updateCategory($id, $data)
+    {
         try {
             $existingCategory = $this->category->readOne($id);
             if (!$existingCategory) {
@@ -311,7 +322,8 @@ class AdminController {
     /**
      * Delete a category (only if no products are associated)
      */
-    public function deleteCategory($id) {
+    public function deleteCategory($id)
+    {
         try {
             $category = $this->category->readOne($id);
             if (!$category) {
@@ -325,7 +337,7 @@ class AdminController {
             }
 
             $result = $this->category->delete($id);
-            
+
             if ($result) {
                 return ['success' => true, 'message' => 'Category deleted successfully'];
             } else {
@@ -345,7 +357,8 @@ class AdminController {
     /**
      * Get all users with their statistics
      */
-    public function getAllCustomers() {
+    public function getAllCustomers()
+    {
         try {
             $sql = "SELECT u.*, 
                         COUNT(o.id) as order_count,
@@ -355,11 +368,11 @@ class AdminController {
                     WHERE u.role = 'user'  -- This line filters only customers
                     GROUP BY u.id
                     ORDER BY u.created_at DESC";
-    
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
         } catch (PDOException $e) {
             error_log("Get all customers error: " . $e->getMessage());
             return false;
@@ -369,14 +382,15 @@ class AdminController {
     /**
      * Update user status
      */
-    public function updateUserStatus($id, $status) {
+    public function updateUserStatus($id, $status)
+    {
         try {
             if (!in_array($status, ['active', 'inactive', 'suspended'])) {
                 return ['success' => false, 'message' => 'Invalid status'];
             }
 
             $result = $this->user->updateUserStatus($id, $status);
-            
+
             if ($result) {
                 return ['success' => true, 'message' => 'User status updated successfully'];
             } else {
@@ -392,14 +406,15 @@ class AdminController {
     /**
      * Update user role
      */
-    public function updateUserRole($id, $role) {
+    public function updateUserRole($id, $role)
+    {
         try {
             if (!in_array($role, ['user', 'admin', 'moderator'])) {
                 return ['success' => false, 'message' => 'Invalid role'];
             }
 
             $result = $this->user->updateUserRole($id, $role);
-            
+
             if ($result) {
                 return ['success' => true, 'message' => 'User role updated successfully'];
             } else {
@@ -415,7 +430,8 @@ class AdminController {
     /**
      * Delete a user
      */
-    public function deleteUser($id) {
+    public function deleteUser($id)
+    {
         try {
             $user = $this->user->getUserById($id);
             if (!$user) {
@@ -428,7 +444,7 @@ class AdminController {
             }
 
             $result = $this->user->deleteUser($id);
-            
+
             if ($result) {
                 return ['success' => true, 'message' => 'User deleted successfully'];
             } else {
@@ -448,7 +464,8 @@ class AdminController {
     /**
      * Get all orders with user information including profile pictures
      */
-        public function getAllOrders() {
+    public function getAllOrders()
+    {
         try {
             $sql = "SELECT o.*, 
                         u.username, 
@@ -462,11 +479,11 @@ class AdminController {
                     LEFT JOIN order_items oi ON o.id = oi.order_id
                     GROUP BY o.id, o.order_number, o.user_id, o.total_amount, o.status, o.created_at, u.username, u.email, u.phone, u.address, u.profile_pic
                     ORDER BY o.created_at DESC";
-                        
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute();
             $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             foreach ($orders as &$order) {
                 if (empty($order['username'])) {
                     $order['username'] = 'Deleted User';
@@ -486,11 +503,11 @@ class AdminController {
                     $order['profile_pic_url'] = null;
                 }
 
-                $order['item_count'] = max(1, (int)$order['item_count']);
+                $order['item_count'] = max(1, (int) $order['item_count']);
             }
-            
+
             return $orders;
-            
+
         } catch (Exception $e) {
             error_log("AdminController::getAllOrders() - " . $e->getMessage());
             return [];
@@ -500,17 +517,18 @@ class AdminController {
 
 
     /* Get order details by ID with user information */
-    public function getOrderById($orderId) {
+    public function getOrderById($orderId)
+    {
         try {
             $sql = "SELECT o.*, u.username, u.email, u.profile_pic, u.phone, u.address
                     FROM orders o
                     LEFT JOIN users u ON o.user_id = u.id
                     WHERE o.id = :order_id";
-            
+
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':order_id', $orderId);
             $stmt->execute();
-            
+
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             error_log("AdminController::getOrderById() - " . $e->getMessage());
@@ -521,17 +539,18 @@ class AdminController {
     /**
      * Get order items by order ID
      */
-    public function getOrderItems($orderId) {
+    public function getOrderItems($orderId)
+    {
         try {
             $sql = "SELECT oi.*, p.name as product_name, p.image as product_image, p.price as product_price
                     FROM order_items oi
                     LEFT JOIN products p ON oi.product_id = p.id
                     WHERE oi.order_id = :order_id";
-            
+
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':order_id', $orderId);
             $stmt->execute();
-            
+
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             error_log("AdminController::getOrderItems() - " . $e->getMessage());
@@ -544,110 +563,121 @@ class AdminController {
      */
     // Add this method to your AdminController.php class
 
-/**
- * Update order status
- */
     /**
- * Update order status and automatically set payment status to completed when delivered
- */
-public function updateOrderStatus($orderId, $status) {
-    try {
-        // Validate status based on your system
-        $validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
-        if (!in_array($status, $validStatuses)) {
-            return ['success' => false, 'message' => 'Invalid status provided'];
-        }
+     * Update order status
+     */
+    /**
+     * Update order status and automatically set payment status to completed when delivered
+     */
+    public function updateOrderStatus($orderId, $status)
+    {
+        try {
+            // Validate status based on your system
+            $validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+            if (!in_array($status, $validStatuses)) {
+                return ['success' => false, 'message' => 'Invalid status provided'];
+            }
 
-        // Check if order exists
-        $checkSql = "SELECT id, status as current_status, payment_status FROM orders WHERE id = :order_id";
-        $checkStmt = $this->db->prepare($checkSql);
-        $checkStmt->bindParam(':order_id', $orderId, PDO::PARAM_INT);
-        $checkStmt->execute();
-        
-        $order = $checkStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$order) {
-            return ['success' => false, 'message' => 'Order not found'];
-        }
+            // Check if order exists
+            $checkSql = "SELECT id, status as current_status, payment_status FROM orders WHERE id = :order_id";
+            $checkStmt = $this->db->prepare($checkSql);
+            $checkStmt->bindParam(':order_id', $orderId, PDO::PARAM_INT);
+            $checkStmt->execute();
 
-        // Check if status is actually changing
-        if ($order['current_status'] === $status) {
-            return ['success' => true, 'message' => 'Order status is already ' . ucfirst($status)];
-        }
+            $order = $checkStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$order) {
+                return ['success' => false, 'message' => 'Order not found'];
+            }
 
-        // Prepare the update query
-        // If status is 'delivered', also update payment_status to 'completed'
-        if ($status === 'delivered') {
-            $sql = "UPDATE orders 
+            // Check if status is actually changing
+            if ($order['current_status'] === $status) {
+                return ['success' => true, 'message' => 'Order status is already ' . ucfirst($status)];
+            }
+
+            // Prepare the update query
+            if ($status === 'delivered') {
+                $sql = "UPDATE orders 
                     SET status = :status, 
                         payment_status = 'completed', 
                         updated_at = NOW() 
                     WHERE id = :order_id";
-        } else {
-            $sql = "UPDATE orders 
+            } else {
+                $sql = "UPDATE orders 
                     SET status = :status, 
                         updated_at = NOW() 
                     WHERE id = :order_id";
-        }
-        
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':status', $status, PDO::PARAM_STR);
-        $stmt->bindParam(':order_id', $orderId, PDO::PARAM_INT);
-        
-        if ($stmt->execute()) {
-            // Log the status change for audit trail
-            $logMessage = "Order #{$orderId} status changed from {$order['current_status']} to {$status}";
-            if ($status === 'delivered') {
-                $logMessage .= " and payment status set to 'completed'";
             }
-            $logMessage .= " by admin user ID: " . ($_SESSION['user_id'] ?? 'unknown');
-            error_log($logMessage);
-            
-            // Prepare success message
-            $message = 'Order status updated successfully to ' . ucfirst($status);
-            if ($status === 'delivered') {
-                $message .= ' and payment marked as completed';
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':status', $status, PDO::PARAM_STR);
+            $stmt->bindParam(':order_id', $orderId, PDO::PARAM_INT);
+
+            if ($stmt->execute()) {
+
+                // ============================================================
+                // NEW: TRIGGER EMAIL NOTIFICATION
+                // ============================================================
+                $orderData = $this->getOrderById($orderId);
+                if ($orderData && !empty($orderData['email'])) {
+                    $this->sendOrderStatusEmail($orderData['email'], $orderData['order_number'], $status);
+                }
+                // ============================================================
+
+                // Log the status change for audit trail
+                $logMessage = "Order #{$orderId} status changed from {$order['current_status']} to {$status}";
+                if ($status === 'delivered') {
+                    $logMessage .= " and payment status set to 'completed'";
+                }
+                $logMessage .= " by admin user ID: " . ($_SESSION['user_id'] ?? 'unknown');
+                error_log($logMessage);
+
+                // Prepare success message
+                $message = 'Order status updated successfully to ' . ucfirst($status);
+                if ($status === 'delivered') {
+                    $message .= ' and payment marked as completed';
+                }
+
+                return [
+                    'success' => true,
+                    'message' => $message,
+                    'new_status' => $status,
+                    'payment_status' => $status === 'delivered' ? 'completed' : $order['payment_status'],
+                    'order_id' => $orderId
+                ];
+            } else {
+                return ['success' => false, 'message' => 'Failed to update order status in database'];
             }
-            
-            return [
-                'success' => true, 
-                'message' => $message,
-                'new_status' => $status,
-                'payment_status' => $status === 'delivered' ? 'completed' : $order['payment_status'],
-                'order_id' => $orderId
-            ];
-        } else {
-            return ['success' => false, 'message' => 'Failed to update order status in database'];
+
+        } catch (PDOException $e) {
+            error_log("AdminController::updateOrderStatus() PDO Error - " . $e->getMessage());
+            return ['success' => false, 'message' => 'Database error occurred while updating order status'];
+        } catch (Exception $e) {
+            error_log("AdminController::updateOrderStatus() Error - " . $e->getMessage());
+            return ['success' => false, 'message' => 'An error occurred while updating order status'];
         }
-        
-    } catch (PDOException $e) {
-        error_log("AdminController::updateOrderStatus() PDO Error - " . $e->getMessage());
-        return ['success' => false, 'message' => 'Database error occurred while updating order status'];
-    } catch (Exception $e) {
-        error_log("AdminController::updateOrderStatus() Error - " . $e->getMessage());
-        return ['success' => false, 'message' => 'An error occurred while updating order status'];
     }
-}
-    
+
 
     /**
      * Delete an order
      */
-    public function deleteOrder($id) {
+    public function deleteOrder($id)
+    {
         try {
             $this->db->beginTransaction();
-            
+
             // First delete order items
             $deleteItemsSql = "DELETE FROM order_items WHERE order_id = :order_id";
             $deleteItemsStmt = $this->db->prepare($deleteItemsSql);
             $deleteItemsStmt->bindParam(':order_id', $id);
             $deleteItemsStmt->execute();
-            
+
             // Then delete the order
             $deleteOrderSql = "DELETE FROM orders WHERE id = :id";
             $deleteOrderStmt = $this->db->prepare($deleteOrderSql);
             $deleteOrderStmt->bindParam(':id', $id);
             $result = $deleteOrderStmt->execute();
-            
+
             if ($result) {
                 $this->db->commit();
                 return ['success' => true, 'message' => 'Order deleted successfully'];
@@ -655,14 +685,14 @@ public function updateOrderStatus($orderId, $status) {
                 $this->db->rollback();
                 return ['success' => false, 'message' => 'Failed to delete order'];
             }
-            
+
         } catch (Exception $e) {
             $this->db->rollback();
             error_log("AdminController::deleteOrder() - " . $e->getMessage());
             return ['success' => false, 'message' => 'An error occurred while deleting order'];
         }
     }
-    
+
 
     // ============================================================================
     // ADMIN PROFILE UPDATE
@@ -671,7 +701,8 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Get current user profile information
      */
-    public function getCurrentUserProfile($userId) {
+    public function getCurrentUserProfile($userId)
+    {
         try {
             return $this->user->getUserById($userId);
         } catch (Exception $e) {
@@ -683,7 +714,8 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Update current user profile
      */
-    public function updateUserProfile($userId, $data) {
+    public function updateUserProfile($userId, $data)
+    {
         try {
             // Validate required fields
             if (empty($data['username']) || empty($data['email'])) {
@@ -724,7 +756,7 @@ public function updateOrderStatus($orderId, $status) {
                 }
                 $_SESSION['username'] = $data['username'];
                 $_SESSION['email'] = $data['email'];
-                
+
                 return ['success' => true, 'message' => 'Profile updated successfully'];
             } else {
                 return ['success' => false, 'message' => 'Failed to update profile'];
@@ -739,7 +771,8 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Change user password
      */
-    public function changeUserPassword($userId, $currentPassword, $newPassword, $confirmPassword) {
+    public function changeUserPassword($userId, $currentPassword, $newPassword, $confirmPassword)
+    {
         try {
             // Validate input
             if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
@@ -783,7 +816,8 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Get dashboard statistics
      */
-    public function getDashboardStats() {
+    public function getDashboardStats()
+    {
         try {
             $stats = [];
 
@@ -815,33 +849,34 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Get order statistics for the order management section
      */
-    public function getOrderStats() {
+    public function getOrderStats()
+    {
         try {
             $stats = [];
-            
+
             // Get counts for each order status
             $sql = "SELECT status, COUNT(*) as count FROM orders GROUP BY status";
             $stmt = $this->db->prepare($sql);
             $stmt->execute();
             $statusCounts = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-            
+
             // Set default values for all possible statuses
             $validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
             foreach ($validStatuses as $status) {
                 $stats[$status . '_orders'] = $statusCounts[$status] ?? 0;
             }
-            
+
             // Additional statistics
             $stats['total_orders'] = array_sum($statusCounts);
-            
+
             // Total revenue (excluding cancelled orders)
             $revenueSql = "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status != 'cancelled'";
             $revenueStmt = $this->db->prepare($revenueSql);
             $revenueStmt->execute();
             $stats['total_revenue'] = $revenueStmt->fetchColumn();
-            
+
             return $stats;
-            
+
         } catch (Exception $e) {
             error_log("AdminController::getOrderStats() - " . $e->getMessage());
             return [
@@ -860,7 +895,8 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Get recent orders for dashboard
      */
-    public function getRecentOrders($limit = 5) {
+    public function getRecentOrders($limit = 5)
+    {
         try {
             $sql = "SELECT o.id, o.order_number, o.total_amount, o.status, o.created_at,
                            u.username, u.profile_pic
@@ -868,11 +904,11 @@ public function updateOrderStatus($orderId, $status) {
                     LEFT JOIN users u ON o.user_id = u.id
                     ORDER BY o.created_at DESC
                     LIMIT :limit";
-            
+
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
             $stmt->execute();
-            
+
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             error_log("AdminController::getRecentOrders() - " . $e->getMessage());
@@ -883,18 +919,19 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Get low stock products
      */
-    public function getLowStockProducts($threshold = 10) {
+    public function getLowStockProducts($threshold = 10)
+    {
         try {
             $sql = "SELECT p.*, c.name as category_name
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     WHERE p.stock <= :threshold AND p.status = 'active'
                     ORDER BY p.stock ASC";
-            
+
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':threshold', $threshold, PDO::PARAM_INT);
             $stmt->execute();
-            
+
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             error_log("AdminController::getLowStockProducts() - " . $e->getMessage());
@@ -909,14 +946,15 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Handle category status changes and update related products
      */
-    private function handleCategoryStatusChange($categoryId, $oldStatus, $newStatus) {
+    private function handleCategoryStatusChange($categoryId, $oldStatus, $newStatus)
+    {
         try {
             if ($oldStatus === $newStatus) {
                 return; // No change needed
             }
 
             $products = $this->product->getProductsByCategory($categoryId);
-            
+
             foreach ($products as $product) {
                 if ($newStatus === 'inactive') {
                     // Category became inactive: set products to pending
@@ -938,7 +976,8 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Set refresh flag for shop stock updates
      */
-    private function setRefreshFlag() {
+    private function setRefreshFlag()
+    {
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
@@ -946,62 +985,72 @@ public function updateOrderStatus($orderId, $status) {
     }
 
     // Statistics helper methods
-    private function getProductCount() {
+    private function getProductCount()
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM products");
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getActiveProductCount() {
+    private function getActiveProductCount()
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM products WHERE status = 'active'");
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getLowStockProductCount($threshold = 10) {
+    private function getLowStockProductCount($threshold = 10)
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM products WHERE stock <= :threshold AND status = 'active'");
         $stmt->bindParam(':threshold', $threshold);
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getCategoryCount() {
+    private function getCategoryCount()
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM categories");
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getActiveCategoryCount() {
+    private function getActiveCategoryCount()
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM categories WHERE status = 'active'");
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getUserCount() {
+    private function getUserCount()
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE role != 'admin'");
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getActiveUserCount() {
+    private function getActiveUserCount()
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE status = 'active' AND role != 'admin'");
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getOrderCount() {
+    private function getOrderCount()
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM orders");
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getPendingOrderCount() {
+    private function getPendingOrderCount()
+    {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM orders WHERE status = 'pending'");
         $stmt->execute();
         return $stmt->fetchColumn();
     }
 
-    private function getTotalRevenue() {
+    private function getTotalRevenue()
+    {
         $stmt = $this->db->prepare("SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status != 'cancelled'");
         $stmt->execute();
         return $stmt->fetchColumn();
@@ -1010,20 +1059,22 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Validate admin permissions
      */
-    public function validateAdminAccess() {
-    // Allow both Admin and Staff
-    $allowed_roles = ['admin', 'staff'];
-    
-    if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], $allowed_roles)) {
-        header("Location: ../../views/admin/login.php");
-        exit;
+    public function validateAdminAccess()
+    {
+        // Allow both Admin and Staff
+        $allowed_roles = ['admin', 'staff'];
+
+        if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], $allowed_roles)) {
+            header("Location: ../../views/admin/login.php");
+            exit;
+        }
     }
-}
 
     /**
      * Search orders by various criteria
      */
-    public function searchOrders($searchTerm, $status = '', $dateFrom = '', $dateTo = '') {
+    public function searchOrders($searchTerm, $status = '', $dateFrom = '', $dateTo = '')
+    {
         try {
             $sql = "SELECT o.*, u.username, u.email, u.profile_pic,
                            COUNT(oi.id) as item_count
@@ -1031,9 +1082,9 @@ public function updateOrderStatus($orderId, $status) {
                     LEFT JOIN users u ON o.user_id = u.id
                     LEFT JOIN order_items oi ON o.id = oi.order_id
                     WHERE 1=1";
-            
+
             $params = [];
-            
+
             // Add search term filter
             if (!empty($searchTerm)) {
                 $sql .= " AND (o.order_number LIKE :search 
@@ -1041,36 +1092,36 @@ public function updateOrderStatus($orderId, $status) {
                              OR u.email LIKE :search)";
                 $params[':search'] = '%' . $searchTerm . '%';
             }
-            
+
             // Add status filter
             if (!empty($status)) {
                 $sql .= " AND o.status = :status";
                 $params[':status'] = $status;
             }
-            
+
             // Add date range filter
             if (!empty($dateFrom)) {
                 $sql .= " AND DATE(o.created_at) >= :date_from";
                 $params[':date_from'] = $dateFrom;
             }
-            
+
             if (!empty($dateTo)) {
                 $sql .= " AND DATE(o.created_at) <= :date_to";
                 $params[':date_to'] = $dateTo;
             }
-            
+
             $sql .= " GROUP BY o.id, o.order_number, o.user_id, o.total_amount, o.status, o.created_at, u.username, u.email, u.profile_pic
                      ORDER BY o.created_at DESC";
-            
+
             $stmt = $this->db->prepare($sql);
-            
+
             foreach ($params as $key => $value) {
                 $stmt->bindValue($key, $value);
             }
-            
+
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
         } catch (Exception $e) {
             error_log("AdminController::searchOrders() - " . $e->getMessage());
             return [];
@@ -1080,7 +1131,8 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Export orders data to CSV
      */
-    public function exportOrdersToCSV($filters = []) {
+    public function exportOrdersToCSV($filters = [])
+    {
         try {
             $orders = empty($filters) ? $this->getAllOrders() : $this->searchOrders(
                 $filters['search'] ?? '',
@@ -1088,10 +1140,10 @@ public function updateOrderStatus($orderId, $status) {
                 $filters['date_from'] ?? '',
                 $filters['date_to'] ?? ''
             );
-            
+
             $csvData = [];
             $csvData[] = ['Order ID', 'Order Number', 'Customer', 'Email', 'Items', 'Total Amount', 'Status', 'Date Created'];
-            
+
             foreach ($orders as $order) {
                 $csvData[] = [
                     $order['id'],
@@ -1104,9 +1156,9 @@ public function updateOrderStatus($orderId, $status) {
                     $order['created_at']
                 ];
             }
-            
+
             return $csvData;
-            
+
         } catch (Exception $e) {
             error_log("AdminController::exportOrdersToCSV() - " . $e->getMessage());
             return false;
@@ -1116,7 +1168,8 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Get monthly sales data for charts
      */
-    public function getMonthlySalesData($months = 12) {
+    public function getMonthlySalesData($months = 12)
+    {
         try {
             $sql = "SELECT 
                         DATE_FORMAT(created_at, '%Y-%m') as month,
@@ -1127,13 +1180,13 @@ public function updateOrderStatus($orderId, $status) {
                         AND created_at >= DATE_SUB(CURDATE(), INTERVAL :months MONTH)
                     GROUP BY DATE_FORMAT(created_at, '%Y-%m')
                     ORDER BY month ASC";
-            
+
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':months', $months, PDO::PARAM_INT);
             $stmt->execute();
-            
+
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
         } catch (Exception $e) {
             error_log("AdminController::getMonthlySalesData() - " . $e->getMessage());
             return [];
@@ -1144,30 +1197,31 @@ public function updateOrderStatus($orderId, $status) {
     /**
      * Get customer statistics
      */
-    public function getCustomerStats() {
+    public function getCustomerStats()
+    {
         try {
             $stats = [];
-            
+
             // New customers this month
             $sql = "SELECT COUNT(*) FROM users WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')";
             $stmt = $this->db->prepare($sql);
             $stmt->execute();
             $stats['new_customers_this_month'] = $stmt->fetchColumn();
-            
+
             // Total customers with orders
             $sql = "SELECT COUNT(DISTINCT user_id) FROM orders";
             $stmt = $this->db->prepare($sql);
             $stmt->execute();
             $stats['customers_with_orders'] = $stmt->fetchColumn();
-            
+
             // Average order value
             $sql = "SELECT AVG(total_amount) FROM orders WHERE status != 'cancelled'";
             $stmt = $this->db->prepare($sql);
             $stmt->execute();
             $stats['average_order_value'] = $stmt->fetchColumn() ?: 0;
-            
+
             return $stats;
-            
+
         } catch (Exception $e) {
             error_log("AdminController::getCustomerStats() - " . $e->getMessage());
             return [
@@ -1180,38 +1234,40 @@ public function updateOrderStatus($orderId, $status) {
 
 
     /**
- * Get top performing products (with sales, revenue, category)
- */
-public function getTopPerformingProducts($limit = 5) {
-    $topProducts = $this->getTopPerformingProductsSimple($limit);
+     * Get top performing products (with sales, revenue, category)
+     */
+    public function getTopPerformingProducts($limit = 5)
+    {
+        $topProducts = $this->getTopPerformingProductsSimple($limit);
 
-    // Add growth + rank
-    foreach ($topProducts as &$product) {
-        $product['growth'] = $this->getSimpleProductGrowth($product['id']);
-        $product['rank'] = isset($product['total_sold']) && $product['total_sold'] > 0 
-            ? (int)$product['total_sold'] : 0;
+        // Add growth + rank
+        foreach ($topProducts as &$product) {
+            $product['growth'] = $this->getSimpleProductGrowth($product['id']);
+            $product['rank'] = isset($product['total_sold']) && $product['total_sold'] > 0
+                ? (int) $product['total_sold'] : 0;
+        }
+
+        // Sort by rank (total_sold)
+        usort($topProducts, function ($a, $b) {
+            return $b['rank'] - $a['rank'];
+        });
+
+        // Apply numeric rank 1,2,3,...
+        $rank = 1;
+        foreach ($topProducts as &$product) {
+            $product['rank'] = $rank++;
+        }
+
+        return $topProducts;
     }
 
-    // Sort by rank (total_sold)
-    usort($topProducts, function ($a, $b) {
-        return $b['rank'] - $a['rank'];
-    });
-
-    // Apply numeric rank 1,2,3,...
-    $rank = 1;
-    foreach ($topProducts as &$product) {
-        $product['rank'] = $rank++;
-    }
-
-    return $topProducts;
-}
-
-/**
- * Simple query to get top selling products (no growth calc)
- */
-private function getTopPerformingProductsSimple($limit) {
-    try {
-        $sql = "SELECT 
+    /**
+     * Simple query to get top selling products (no growth calc)
+     */
+    private function getTopPerformingProductsSimple($limit)
+    {
+        try {
+            $sql = "SELECT 
                     p.id,
                     p.name,
                     p.image,
@@ -1229,21 +1285,22 @@ private function getTopPerformingProductsSimple($limit) {
                 ORDER BY total_sold DESC
                 LIMIT :limit";
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Error fetching top products: " . $e->getMessage());
-        return [];
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error fetching top products: " . $e->getMessage());
+            return [];
+        }
     }
-}
 
-/**
- * Calculate growth % (current 30 days vs previous 30 days)
- */
-private function getSimpleProductGrowth($productId) {
-    $sql = "SELECT 
+    /**
+     * Calculate growth % (current 30 days vs previous 30 days)
+     */
+    private function getSimpleProductGrowth($productId)
+    {
+        $sql = "SELECT 
                 SUM(CASE WHEN o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN oi.quantity ELSE 0 END) AS current_sales,
                 SUM(CASE WHEN o.created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
                           AND o.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY) THEN oi.quantity ELSE 0 END) AS previous_sales
@@ -1251,25 +1308,78 @@ private function getSimpleProductGrowth($productId) {
             INNER JOIN orders o ON o.id = oi.order_id
             WHERE oi.product_id = :product_id";
 
-    try {
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':product_id', $productId, PDO::PARAM_INT);
-        $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':product_id', $productId, PDO::PARAM_INT);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $current = (int)($result['current_sales'] ?? 0);
-        $previous = (int)($result['previous_sales'] ?? 0);
+            $current = (int) ($result['current_sales'] ?? 0);
+            $previous = (int) ($result['previous_sales'] ?? 0);
 
-        if ($previous > 0) {
-            return round((($current - $previous) / $previous) * 100, 1);
-        } else {
-            return $current > 0 ? 100 : 0; // 100% if it’s a new product with sales
+            if ($previous > 0) {
+                return round((($current - $previous) / $previous) * 100, 1);
+            } else {
+                return $current > 0 ? 100 : 0; // 100% if it’s a new product with sales
+            }
+        } catch (PDOException $e) {
+            error_log("Error calculating growth for product $productId: " . $e->getMessage());
+            return 0;
         }
-    } catch (PDOException $e) {
-        error_log("Error calculating growth for product $productId: " . $e->getMessage());
-        return 0;
     }
-}
+
+
+    /**
+     * Private helper to send SMTP emails using PHPMailer
+     */
+    private function sendOrderStatusEmail($recipientEmail, $orderNumber, $status)
+    {
+        // Correct paths based on your folder structure
+        require_once __DIR__ . '/../../libraries/phpmailer/src/Exception.php';
+        require_once __DIR__ . '/../../libraries/phpmailer/src/PHPMailer.php';
+        require_once __DIR__ . '/../../libraries/phpmailer/src/SMTP.php';
+
+        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+        try {
+            // Server settings
+            $mail->isSMTP();
+            $mail->Host = 'smtp.gmail.com'; // Change if not using Gmail
+            $mail->SMTPAuth = true;
+            $mail->Username = 'your-email@gmail.com';
+            $mail->Password = 'your-app-password'; // 16-character Google App Password
+            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = 587;
+
+            // Recipients
+            $mail->setFrom('no-reply@empire.com', 'EMPIRE E-COMMERCE');
+            $mail->addAddress($recipientEmail);
+
+            // Content
+            $mail->isHTML(true);
+            $mail->Subject = "Update on your Order #$orderNumber";
+
+            // Simple HTML Template
+            $mail->Body = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;'>
+                <h2 style='color: #333; text-align: center;'>Order Status Update</h2>
+                <p>Hello,</p>
+                <p>We wanted to let you know that your order <strong>#$orderNumber</strong> has been updated.</p>
+                <div style='background: #f9f9f9; padding: 15px; text-align: center; border-radius: 5px;'>
+                    <span style='font-size: 18px; color: #d32f2f; font-weight: bold;'>" . strtoupper($status) . "</span>
+                </div>
+                <p>You can view your order details by logging into your account.</p>
+                <hr style='border: 0; border-top: 1px solid #eee;' />
+                <p style='font-size: 12px; color: #888;'>Thank you for choosing EMPIRE E-COMMERCE.</p>
+            </div>";
+
+            $mail->send();
+            return true;
+        } catch (Exception $e) {
+            error_log("Order Notification Mail Error: " . $mail->ErrorInfo);
+            return false;
+        }
+    }
 
 
 
