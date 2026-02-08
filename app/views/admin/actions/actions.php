@@ -527,7 +527,7 @@ function handleOrderActions($adminController) {
     }
 
     // Handle order status updates
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_status') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_order_status') {
         // Clean any previous output
         if (ob_get_length()) ob_clean();
         

@@ -360,7 +360,7 @@ class AdminController
     public function getAllCustomers()
     {
         try {
-            $sql = "SELECT u.*, 
+            $sql = "SELECT u.*,
                         COUNT(o.id) as order_count,
                         COALESCE(SUM(o.total_amount), 0.00) as total_spent
                     FROM users u
@@ -467,9 +467,9 @@ class AdminController
     public function getAllOrders()
     {
         try {
-            $sql = "SELECT o.*, 
-                        u.username, 
-                        u.email, 
+            $sql = "SELECT o.*,
+                        u.username,
+                        u.email,
                         u.phone,
                         u.address,
                         u.profile_pic,
@@ -596,15 +596,15 @@ class AdminController
 
             // Prepare the update query
             if ($status === 'delivered') {
-                $sql = "UPDATE orders 
-                    SET status = :status, 
-                        payment_status = 'completed', 
-                        updated_at = NOW() 
+                $sql = "UPDATE orders
+                    SET status = :status,
+                        payment_status = 'completed',
+                        updated_at = NOW()
                     WHERE id = :order_id";
             } else {
-                $sql = "UPDATE orders 
-                    SET status = :status, 
-                        updated_at = NOW() 
+                $sql = "UPDATE orders
+                    SET status = :status,
+                        updated_at = NOW()
                     WHERE id = :order_id";
             }
 
@@ -619,7 +619,7 @@ class AdminController
                 // ============================================================
                 $orderData = $this->getOrderById($orderId);
                 if ($orderData && !empty($orderData['email'])) {
-                    $this->sendOrderStatusEmail($orderData['email'], $orderData['order_number'], $status);
+                    $this->sendOrderStatusEmail($orderData['email'], $orderData['order_number'], $status, $orderData['total_amount']);
                 }
                 // ============================================================
 
@@ -1087,8 +1087,8 @@ class AdminController
 
             // Add search term filter
             if (!empty($searchTerm)) {
-                $sql .= " AND (o.order_number LIKE :search 
-                             OR u.username LIKE :search 
+                $sql .= " AND (o.order_number LIKE :search
+                             OR u.username LIKE :search
                              OR u.email LIKE :search)";
                 $params[':search'] = '%' . $searchTerm . '%';
             }
@@ -1171,12 +1171,12 @@ class AdminController
     public function getMonthlySalesData($months = 12)
     {
         try {
-            $sql = "SELECT 
+            $sql = "SELECT
                         DATE_FORMAT(created_at, '%Y-%m') as month,
                         COUNT(*) as order_count,
                         SUM(total_amount) as revenue
-                    FROM orders 
-                    WHERE status != 'cancelled' 
+                    FROM orders
+                    WHERE status != 'cancelled'
                         AND created_at >= DATE_SUB(CURDATE(), INTERVAL :months MONTH)
                     GROUP BY DATE_FORMAT(created_at, '%Y-%m')
                     ORDER BY month ASC";
@@ -1267,7 +1267,7 @@ class AdminController
     private function getTopPerformingProductsSimple($limit)
     {
         try {
-            $sql = "SELECT 
+            $sql = "SELECT
                     p.id,
                     p.name,
                     p.image,
@@ -1300,7 +1300,7 @@ class AdminController
      */
     private function getSimpleProductGrowth($productId)
     {
-        $sql = "SELECT 
+        $sql = "SELECT
                 SUM(CASE WHEN o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN oi.quantity ELSE 0 END) AS current_sales,
                 SUM(CASE WHEN o.created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
                           AND o.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY) THEN oi.quantity ELSE 0 END) AS previous_sales
@@ -1332,8 +1332,10 @@ class AdminController
     /**
      * Private helper to send SMTP emails using PHPMailer
      */
-    private function sendOrderStatusEmail($recipientEmail, $orderNumber, $status)
+    private function sendOrderStatusEmail($recipientEmail, $orderNumber, $status, $orderAmount)
     {
+        $orderAmount = number_format($orderAmount, 2);
+
         // Correct paths based on your folder structure
         require_once __DIR__ . '/../../libraries/phpmailer/src/Exception.php';
         require_once __DIR__ . '/../../libraries/phpmailer/src/PHPMailer.php';
@@ -1346,8 +1348,8 @@ class AdminController
             $mail->isSMTP();
             $mail->Host = 'smtp.gmail.com'; // Change if not using Gmail
             $mail->SMTPAuth = true;
-            $mail->Username = 'your-email@gmail.com';
-            $mail->Password = 'your-app-password'; // 16-character Google App Password
+            $mail->Username = 'empirebsit2025@gmail.com';
+            $mail->Password = 'mqvg swfp cfbu vhze'; // 16-character Google App Password
             $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = 587;
 
@@ -1361,17 +1363,139 @@ class AdminController
 
             // Simple HTML Template
             $mail->Body = "
-            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;'>
-                <h2 style='color: #333; text-align: center;'>Order Status Update</h2>
-                <p>Hello,</p>
-                <p>We wanted to let you know that your order <strong>#$orderNumber</strong> has been updated.</p>
-                <div style='background: #f9f9f9; padding: 15px; text-align: center; border-radius: 5px;'>
-                    <span style='font-size: 18px; color: #d32f2f; font-weight: bold;'>" . strtoupper($status) . "</span>
-                </div>
-                <p>You can view your order details by logging into your account.</p>
-                <hr style='border: 0; border-top: 1px solid #eee;' />
-                <p style='font-size: 12px; color: #888;'>Thank you for choosing EMPIRE E-COMMERCE.</p>
-            </div>";
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+        </style>
+    </head>
+    <body style='margin: 0; padding: 0; background-color: #f4f4f4; font-family: \"Poppins\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;'>
+        <table role='presentation' style='width: 100%; border-collapse: collapse; background-color: #f4f4f4;'>
+            <tr>
+                <td align='center' style='padding: 40px 20px;'>
+                    <table role='presentation' style='width: 100%; max-width: 600px; border-collapse: collapse; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);'>
+                        
+                        <!-- Header -->
+                        <tr>
+                            <td style='background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%); padding: 50px 40px; text-align: center;'>
+                                <h1 style='margin: 0; color: #ffffff; font-size: 48px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; font-family: \"Poppins\", sans-serif;'>
+                                    EMPIRE
+                                </h1>
+                                <p style='margin: 12px 0 0 0; color: #a0a0a0; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; font-weight: 500;'>
+                                    Streetwear Culture
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <!-- Main Content -->
+                        <tr>
+                            <td style='padding: 60px 40px; text-align: center;'>
+                                
+                                <h2 style='margin: 0 0 16px 0; color: #1a1a1a; font-size: 32px; font-weight: 700; font-family: \"Poppins\", sans-serif;'>
+                                    Order Status Update
+                                </h2>
+                                
+                                <p style='margin: 0 0 40px 0; color: #666666; font-size: 16px; line-height: 1.7; font-weight: 400; max-width: 480px; margin-left: auto; margin-right: auto;'>
+                                    Your order has been updated. Check the details below for the latest information.
+                                </p>
+                                
+                                <!-- Order Details Box -->
+                                <table role='presentation' style='width: 100%; max-width: 480px; margin: 0 auto 30px auto; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='background: #f8f8f8; border: 3px solid #000000; border-radius: 12px; padding: 32px 30px;'>
+                                            
+                                            <!-- Order ID -->
+                                            <table role='presentation' style='width: 100%; border-collapse: collapse; margin-bottom: 20px;'>
+                                                <tr>
+                                                    <td style='text-align: left; padding: 12px 0; border-bottom: 2px solid #e0e0e0;'>
+                                                        <p style='margin: 0; color: #999999; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;'>
+                                                            Order Number
+                                                        </p>
+                                                        <p style='margin: 8px 0 0 0; color: #000000; font-size: 20px; font-weight: 700; font-family: \"Poppins\", sans-serif;'>
+                                                            #$orderNumber
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                            
+                                            <!-- Status -->
+                                            <table role='presentation' style='width: 100%; border-collapse: collapse; margin-bottom: 20px;'>
+                                                <tr>
+                                                    <td style='text-align: left; padding: 12px 0; border-bottom: 2px solid #e0e0e0;'>
+                                                        <p style='margin: 0; color: #999999; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;'>
+                                                            Current Status
+                                                        </p>
+                                                        <p style='margin: 8px 0 0 0; color: #000000; font-size: 20px; font-weight: 700; font-family: \"Poppins\", sans-serif; text-transform: uppercase;'>
+                                                            " . htmlspecialchars($status) . "
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                            
+                                            <!-- Total Price -->
+                                            <table role='presentation' style='width: 100%; border-collapse: collapse;'>
+                                                <tr>
+                                                    <td style='text-align: left; padding: 12px 0;'>
+                                                        <p style='margin: 0; color: #999999; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;'>
+                                                            Order Total
+                                                        </p>
+                                                        <p style='margin: 8px 0 0 0; color: #000000; font-size: 28px; font-weight: 700; font-family: \"Poppins\", sans-serif;'>
+                                                            ₱ $orderAmount
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                            
+                                        </td>
+                                    </tr>
+                                </table>
+                                
+                                <!-- Info Notice -->
+                                <table role='presentation' style='width: 100%; max-width: 480px; margin: 0 auto; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='background: #f0f8ff; border-left: 4px solid #000000; padding: 20px 24px; border-radius: 8px; text-align: left;'>
+                                            <p style='margin: 0; color: #1a1a1a; font-size: 14px; line-height: 1.6; font-weight: 500;'>
+                                                <strong>Need Help?</strong> You can track your order anytime by logging into your account. If you have questions, our support team is here for you.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                                
+                                <p style='margin: 40px 0 0 0; color: #999999; font-size: 14px; line-height: 1.6; font-weight: 400;'>
+                                    Questions? Contact us at <a href='mailto:empirebsit2025@gmail.com' style='color: #000000; text-decoration: none; font-weight: 600;'>empirebsit2025@gmail.com</a>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <!-- Footer -->
+                        <tr>
+                            <td style='background: #000000; padding: 40px 40px; text-align: center;'>
+                                <p style='margin: 0 0 8px 0; color: #ffffff; font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;'>
+                                    EMPIRE
+                                </p>
+                                <p style='margin: 0 0 24px 0; color: #808080; font-size: 13px; line-height: 1.6; font-weight: 400;'>
+                                    Culture • Exclusivity • Lifestyle
+                                </p>
+                                
+                                <div style='border-top: 1px solid #333333; padding-top: 24px;'>
+                                    <p style='margin: 0; color: #666666; font-size: 12px; line-height: 1.6; font-weight: 400;'>
+                                        © " . date('Y') . " Empire Streetwear. All rights reserved.<br>
+                                        This is an automated order notification from empire.com
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+";
 
             $mail->send();
             return true;

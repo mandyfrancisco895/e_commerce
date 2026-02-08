@@ -2406,6 +2406,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="col-md-6 text-end">
                 <div class="d-flex gap-2 justify-content-end align-items-center">
+                    
                     <select class="form-select" style="width: auto;" id="orderStatusFilter">
                         <option value="">All Status</option>
                         <option value="pending">Pending</option>
@@ -2414,7 +2415,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         <option value="delivered">Delivered</option>
                         <option value="cancelled">Cancelled</option>
                     </select>
-                    <input type="date" class="form-control" style="width: auto;" id="orderDateFilter">
 
                     <button class="btn btn-outline-secondary" id="clearOrderFilter">
                         <i class="bi bi-x-circle"></i> Clear
@@ -7074,6 +7074,60 @@ if (isset($_POST['maintenance_mode']) && $_POST['maintenance_mode'] == '1') {
     </div>
     <!-- =================================================================== -->
     
+<!-- ===================================================================
+     ORDER STATUS CONFIRMATION MODAL
+     =================================================================== -->
+<div class="modal fade" id="orderStatusConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Status Change
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body p-4">
+                <div class="text-center mb-3">
+                    <i class="bi bi-box-seam" style="font-size: 3rem; color: #ffc107;"></i>
+                </div>
+                
+                <p class="mb-3 text-center">
+                    Are you sure you want to change the order status?
+                </p>
+                
+                <div class="alert alert-light border">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Order ID:</small>
+                            <strong id="confirm_order_id"></strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">New Status:</small>
+                            <strong id="confirm_new_status" class="text-primary text-uppercase"></strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-envelope-fill me-2"></i>
+                    <small>The customer will receive an email notification about this status change.</small>
+                </div>
+            </div>
+            
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-warning text-dark fw-bold" id="confirmStatusChangeBtn">
+                    <i class="bi bi-check-circle me-1"></i>Confirm Change
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- =================================================================== -->
+
     </body>
 </html>
 

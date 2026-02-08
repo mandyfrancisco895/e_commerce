@@ -1,71 +1,251 @@
-    // AYUSIN YUNG FILTERING NG SEACRH ASLISIN YNG MONTH YEAR PALITAN NG STATUS FILTER
+// ===================================================================
+// ORDER FILTERING - SEARCH & STATUS ONLY
+// ===================================================================
 
-    // Add this to your JavaScript section
-    document.addEventListener('DOMContentLoaded', function() {
-        // Order filtering
-        const orderSearch = document.getElementById('orderSearch');
-        const statusFilter = document.getElementById('orderStatusFilter');
-        const dateFilter = document.getElementById('orderDateFilter');
-        const orderRows = document.querySelectorAll('.order-row');
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== Initializing Order Filters ===');
     
-        function filterOrders() {
-            const searchText = orderSearch.value.toLowerCase();
-            const statusValue = statusFilter.value;
-            const dateValue = dateFilter.value;
+    // Get filter elements
+    const orderSearch = document.getElementById('orderSearch');
+    const statusFilter = document.getElementById('orderStatusFilter');
+    const clearBtn = document.getElementById('clearOrderFilter');
+    const orderRows = document.querySelectorAll('.order-row');
     
-            orderRows.forEach(row => {
-                const customerName = row.getAttribute('data-customer');
-                const status = row.getAttribute('data-status');
-                const date = row.getAttribute('data-date');
-                const orderDate = new Date(date).toISOString().split('T')[0];
-    
-                const matchesSearch = searchText === '' || customerName.includes(searchText);
-                const matchesStatus = statusValue === '' || status === statusValue;
-                const matchesDate = dateValue === '' || orderDate === dateValue;
-    
-                if (matchesSearch && matchesStatus && matchesDate) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-    
-        orderSearch.addEventListener('input', filterOrders);
-        statusFilter.addEventListener('change', filterOrders);
-        dateFilter.addEventListener('change', filterOrders);
-    
-        document.getElementById('clearOrderFilter').addEventListener('click', function() {
-            orderSearch.value = '';
-            statusFilter.value = '';
-            dateFilter.value = '';
-            filterOrders();
+    console.log('Filter elements found:', {
+        orderSearch: !!orderSearch,
+        statusFilter: !!statusFilter,
+        clearBtn: !!clearBtn,
+        orderRowsCount: orderRows.length
+    });
+
+    function filterOrders() {
+        const searchText = orderSearch ? orderSearch.value.toLowerCase() : '';
+        const statusValue = statusFilter ? statusFilter.value.toLowerCase() : '';
+
+        console.log('Filtering with:', { searchText, statusValue });
+
+        let visibleCount = 0;
+        
+        orderRows.forEach(row => {
+            // Get customer name (already lowercase in data-customer)
+            const customerName = row.getAttribute('data-customer') || '';
+            
+            // Get order number
+            const orderNumber = row.querySelector('td:first-child')?.textContent.toLowerCase() || '';
+            
+            // Get status (lowercase)
+            const status = row.getAttribute('data-status')?.toLowerCase() || '';
+
+            // Check matches
+            const matchesSearch = !searchText || 
+                                customerName.includes(searchText) || 
+                                orderNumber.includes(searchText);
+            
+            const matchesStatus = !statusValue || status === statusValue;
+
+            // Show/hide row
+            if (matchesSearch && matchesStatus) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
         });
+        
+        console.log('Visible rows:', visibleCount + '/' + orderRows.length);
+    }
+
+    // Add event listeners
+    if (orderSearch) {
+        orderSearch.addEventListener('input', filterOrders);
+        console.log('✓ Search input listener added');
+    }
+
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterOrders);
+        console.log('✓ Status filter listener added');
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            if (orderSearch) orderSearch.value = '';
+            if (statusFilter) statusFilter.value = '';
+            filterOrders();
+            console.log('✓ Filters cleared');
+        });
+        console.log('✓ Clear button listener added');
+    }
+    
+    console.log('=== Order Filters Ready ===');
+});
+    
+// ===================================================================
+// ORDER STATUS UPDATE WITH CONFIRMATION MODAL
+// ===================================================================
+
+// Global variables
+let pendingOrderId = null;
+let pendingStatus = null;
+
+function updateOrderStatus(orderId, newStatus) {
+    console.log('updateOrderStatus called:', orderId, newStatus);
+    
+    // Store pending values
+    pendingOrderId = orderId;
+    pendingStatus = newStatus;  // ✅ Make sure this line is correct
+    
+    // Update modal content
+    const orderIdEl = document.getElementById('confirm_order_id');
+    const statusEl = document.getElementById('confirm_new_status');
+    
+    if (orderIdEl) orderIdEl.textContent = '#' + orderId;
+    if (statusEl) statusEl.textContent = newStatus;
+    
+    // Show modal
+    const modalEl = document.getElementById('orderStatusConfirmModal');
+    if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        console.log('Modal shown');
+    } else {
+        console.error('Modal element not found');
+        alert('Modal not found. Please refresh the page.');
+    }
+}
+
+function executeStatusChange() {
+    console.log('executeStatusChange called');
+    
+    if (!pendingOrderId || !pendingStatus) {
+        console.error('No pending order data');
+        return;
+    }
+    
+    const confirmBtn = document.getElementById('confirmStatusChangeBtn');
+    if (!confirmBtn) {
+        console.error('Confirm button not found');
+        return;
+    }
+    
+    // Show loading
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+    
+    // Prepare data
+    const formData = new FormData();
+    formData.append('action', 'update_order_status');
+    formData.append('order_id', pendingOrderId);
+    formData.append('status', pendingStatus);
+    
+    console.log('Sending request:', {
+        order_id: pendingOrderId,
+        status: pendingStatus
     });
     
-    function updateOrderStatus(orderId, status) {
-        if (confirm('Are you sure you want to update this order status?')) {
-            // AJAX call to update order status
-            fetch('update_order_status.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    order_id: orderId,
-                    status: status
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error updating order status');
-                }
-            });
+    // Send request
+    fetch('admin-dashboard.php', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
         }
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        // ✅ Let's see what we're actually getting back
+        return response.text();  // Changed from .json() to .text()
+    })
+    .then(text => {
+        console.log('Raw response:', text);  // This will show us what's wrong
+        
+        // Try to parse as JSON
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error('Failed to parse JSON:', e);
+            console.error('Response was:', text.substring(0, 500));  // Show first 500 chars
+            throw new Error('Server returned invalid JSON');
+        }
+        
+        console.log('Parsed data:', data);
+        
+        // Hide modal
+        const modalEl = document.getElementById('orderStatusConfirmModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+        
+        // Reset button
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalText;
+        
+        if (data.success) {
+            // Show success message
+            if (typeof showNotification === 'function') {
+                showNotification('Success', data.message || 'Order status updated!', 'success');
+            } else {
+                alert(data.message || 'Order status updated successfully!');
+            }
+            
+            // Reload after 1 second
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            // Show error
+            if (typeof showNotification === 'function') {
+                showNotification('Error', data.message || 'Failed to update', 'error');
+            } else {
+                alert('Error: ' + (data.message || 'Failed to update order status'));
+            }
+        }
+        
+        // Clear pending
+        pendingOrderId = null;
+        pendingStatus = null;
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        
+        // Hide modal
+        const modalEl = document.getElementById('orderStatusConfirmModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+        
+        // Reset button
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalText;
+        
+        // Show error
+        if (typeof showNotification === 'function') {
+            showNotification('Error', 'Network error: ' + error.message, 'error');
+        } else {
+            alert('Error: ' + error.message);
+        }
+        
+        // Clear pending
+        pendingOrderId = null;
+        pendingStatus = null;
+    });
+}
+
+// Initialize event listener when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing order status confirmation');
+    
+    const confirmBtn = document.getElementById('confirmStatusChangeBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', executeStatusChange);
+        console.log('Confirm button listener attached');
+    } else {
+        console.error('Confirm button not found on page load');
     }
+});
     
     function printOrder(orderId) {
         window.open(`print_invoice.php?order_id=${orderId}`, '_blank');
@@ -266,99 +446,7 @@ function updateStatsAfterDeletion(deletedStatus) {
 
 
 
-function updateOrderStatus(orderId, newStatus) {
-    if (!orderId || !newStatus) {
-        showNotification('Error', 'Invalid order ID or status', 'error');
-        return;
-    }
 
-    if (!confirm(`Are you sure you want to change the order status to "${newStatus.toUpperCase()}"?`)) {
-        return;
-    }
-
-    // Store the old status for statistics update - FIXED: Get from data attribute
-    const orderRow = document.querySelector(`tr[data-order-id="${orderId}"]`) || 
-                     document.querySelector(`button[data-orderid="${orderId}"]`)?.closest('tr');
-    
-    if (!orderRow) {
-        console.error('Order row not found for ID:', orderId);
-        showNotification('Error', 'Order not found in table', 'error');
-        return;
-    }
-
-    // Get old status from badge text or data attribute
-    const oldStatusBadge = orderRow.querySelector('td:nth-child(5) .badge');
-    const oldStatus = oldStatusBadge?.textContent?.toLowerCase()?.trim() || 
-                     orderRow.getAttribute('data-status')?.toLowerCase();
-
-    console.log(`Updating order ${orderId} from "${oldStatus}" to "${newStatus}"`);
-
-    // Show loading state on the specific row
-    const statusCell = orderRow.querySelector('td:nth-child(5)');
-    if (statusCell) {
-        statusCell.innerHTML = `
-            <span class="badge bg-secondary">
-                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                Updating...
-            </span>
-        `;
-    }
-
-    // Create form data
-    const formData = new FormData();
-    formData.append('order_id', orderId);
-    formData.append('status', newStatus);
-    formData.append('action', 'update_status');
-
-    fetch('admin-dashboard.php', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => {
-        console.log('Response status:', response.status);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('Server response data:', data);
-        
-        if (data.success) {
-            // ✅ CRITICAL FIX: Update ALL instances of the status in the table row
-            updateOrderRowStatus(orderRow, data.new_status, orderId);
-            
-            // ✅ CRITICAL FIX: Update order statistics without page reload
-            updateOrderStatistics(oldStatus, data.new_status);
-            
-            // ✅ Update any open modals with the new status
-            updateModalStatus(orderId, data.new_status);
-
-            // ✅ Re-apply current filters to maintain view consistency
-            applyCurrentFilters();
-
-            // ✅ Add visual feedback for successful update
-            highlightUpdatedRow(orderRow);
-
-            showNotification('Success', data.message, 'success');
-            
-        } else {
-            showNotification('Error', data.message || 'Failed to update order status', 'error');
-            // Restore original status on error
-            restoreStatusBadge(orderRow, oldStatus);
-        }
-    })
-    .catch(error => {
-        console.error('Error updating order status:', error);
-        showNotification('Error', 'An error occurred while updating the order status', 'error');
-        
-        // Restore original status on error
-        restoreStatusBadge(orderRow, oldStatus);
-    });
-}
 
 function updateOrderRowStatus(orderRow, newStatus, orderId) {
     // Update the status badge in the table
@@ -847,3 +935,11 @@ function filterOrdersByDate(date) {
         }
     });
 }
+
+// Initialize confirmation modal event listener
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmBtn = document.getElementById('confirmStatusChangeBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', executeStatusChange);
+    }
+});
