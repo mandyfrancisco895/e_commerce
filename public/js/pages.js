@@ -241,25 +241,29 @@ class CartManager {
         this.initializeEventListeners();
     }
 
-    // Load cart from localStorage (Note: Using memory storage in Claude artifacts)
+    // Load cart from localStorage
     loadCartFromStorage() {
         try {
-            // In Claude artifacts, we'll use a temporary cart variable instead of localStorage
-            if (window.tempCart) {
-                this.cart = window.tempCart;
+            // Use the same storage key as shop.js for consistency
+            const stored = localStorage.getItem('shopping_cart');
+            if (stored) {
+                this.cart = JSON.parse(stored);
             } else {
                 this.cart = [];
             }
+            // Also sync with window.tempCart for backward compatibility
+            window.tempCart = this.cart;
         } catch (error) {
             console.error('Error loading cart from storage:', error);
             this.cart = [];
         }
     }
 
-    // Save cart to storage (Note: Using memory storage in Claude artifacts)
+    // Save cart to storage
     saveCartToStorage() {
         try {
-            // In Claude artifacts, we'll save to a temporary variable instead of localStorage
+            // Save to BOTH localStorage and window.tempCart for full compatibility
+            localStorage.setItem('shopping_cart', JSON.stringify(this.cart));
             window.tempCart = this.cart;
         } catch (error) {
             console.error('Error saving cart to storage:', error);
@@ -1353,5 +1357,3 @@ document.addEventListener('DOMContentLoaded', function() {
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 });
-
-

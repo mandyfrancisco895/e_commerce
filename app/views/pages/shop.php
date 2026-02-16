@@ -9,6 +9,7 @@
     require_once __DIR__ . '/../../../app/models/Product.php';
     require_once __DIR__ . '/../../../app/controllers/CategoryController.php';
     require_once __DIR__ . '/../../../app/models/Category.php';
+    require_once __DIR__ . '/../../../config/PayPalConfig.php';
 
     $database = new Database();
     $db = $database->getConnection();
@@ -65,6 +66,19 @@ if ($isMaint === '1' && $userRole !== 'admin') {
         exit(); // This prevents any products from being loaded below
     }
 
+    // Get PayPal Client ID for frontend
+    $paypalConfig = PayPalConfig::getInstance();
+    $paypalClientId = $paypalConfig->getClientId();
+    $paypalMode = $paypalConfig->getMode();
+
+    // Get user data for checkout form
+    $user = [];
+    if (isset($_SESSION['user_id'])) {
+        $stmt = $db->prepare("SELECT username, email, phone, address FROM users WHERE id = :user_id");
+        $stmt->execute(['user_id' => $_SESSION['user_id']]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
     require_once __DIR__ . '/../../../app/views/includes/header.php';
 ?>
 
@@ -82,7 +96,57 @@ if ($isMaint === '1' && $userRole !== 'admin') {
         <!-- Bootstrap 5.3.0 CSS -->
         <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
 
+        <!-- PayPal SDK -->
+        <script src="https://www.paypal.com/sdk/js?client-id=<?= htmlspecialchars($paypalClientId) ?>&currency=<?= htmlspecialchars($paypalConfig->getCurrency()) ?>"></script>
+
         <link rel="stylesheet" href="../../../public/css/shop.css">
+        
+        <style>
+            .payment-method-card {
+                border: 2px solid #e0e0e0;
+                border-radius: 10px;
+                padding: 15px;
+                margin-bottom: 15px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            
+            .payment-method-card:hover {
+                border-color: #0070ba;
+                box-shadow: 0 4px 12px rgba(0, 112, 186, 0.1);
+            }
+            
+            .payment-method-card.selected {
+                border-color: #0070ba;
+                background-color: #f0f7ff;
+            }
+            
+            .payment-method-card input[type="radio"] {
+                width: 18px;
+                height: 18px;
+                margin-right: 12px;
+            }
+            
+            .payment-icon {
+                font-size: 1.8rem;
+                margin-right: 12px;
+            }
+            
+            #paypal-button-container {
+                margin-top: 15px;
+                display: none;
+                min-height: 45px;
+            }
+            
+            .checkout-item {
+                border-bottom: 1px solid #dee2e6;
+                padding: 10px 0;
+            }
+            
+            .checkout-item:last-child {
+                border-bottom: none;
+            }
+        </style>
     </head>
     <body>
 
@@ -100,7 +164,7 @@ if ($isMaint === '1' && $userRole !== 'admin') {
 
             <!-- Carousel Slides -->
             <div class="carousel-inner">
-                <!-- Slide 1 - Replace with your image -->
+                <!-- Slide 1 -->
                 <div class="carousel-item active" style="background-image: url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80');">
                     <div class="carousel-content">
                         <div class="container">
@@ -117,7 +181,7 @@ if ($isMaint === '1' && $userRole !== 'admin') {
                     </div>
                 </div>
 
-                <!-- Slide 2 - Replace with your image -->
+                <!-- Slide 2 -->
                 <div class="carousel-item" style="background-image: url('https://images.unsplash.com/photo-1469334031218-e382a71b716b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80');">
                     <div class="carousel-content">
                         <div class="container">
@@ -134,7 +198,7 @@ if ($isMaint === '1' && $userRole !== 'admin') {
                     </div>
                 </div>
 
-                <!-- Slide 3 - Replace with your image -->
+                <!-- Slide 3 -->
                 <div class="carousel-item" style="background-image: url('https://images.unsplash.com/photo-1434389677669-e08b4cac3105?ixlib=rb-4.0.3&auto=format&fit=crop&w=2105&q=80');">
                     <div class="carousel-content">
                         <div class="container">
@@ -151,7 +215,7 @@ if ($isMaint === '1' && $userRole !== 'admin') {
                     </div>
                 </div>
 
-                <!-- Slide 4 - Replace with your image -->
+                <!-- Slide 4 -->
                 <div class="carousel-item" style="background-image: url('https://images.unsplash.com/photo-1445205170230-053b83016050?ixlib=rb-4.0.3&auto=format&fit=crop&w=2071&q=80');">
                     <div class="carousel-content">
                         <div class="container">
@@ -266,40 +330,46 @@ if ($isMaint === '1' && $userRole !== 'admin') {
     </div>
 
     
-    <!-- Updated Checkout Modal with Read-only Fields -->
-    <div class="modal fade" id="checkoutModal" tabindex="-1">
+    <!-- UPDATED Checkout Modal with PayPal Integration -->
+    <div class="modal fade" id="checkoutModal" tabindex="-1" aria-labelledby="checkoutModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <form id="checkoutForm" method="POST">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="fas fa-credit-card me-2"></i>Checkout
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title" id="checkoutModalLabel">
+                        <i class="fas fa-shopping-cart me-2"></i>Checkout
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="checkoutForm" method="POST" action="../../../app/controllers/OrderController.php">
+                    <input type="hidden" name="action" value="placeOrder">
+                    <input type="hidden" name="payment_method" id="selected_payment_method" value="Cash on Delivery (COD)">
+                    <input type="hidden" name="paypal_order_id" id="paypal_order_id" value="">
+                    <input type="hidden" name="payment_status" id="payment_status" value="pending">
+                    
                     <div class="modal-body">
-                        <div class="row">
-                            <!-- Order Summary Column -->
-                            <div class="col-md-6">
-                                <div class="h6 mb-3">
-                                    <i class="fas fa-receipt me-2 text-primary"></i>Order Summary
-                                </div>
-                                <div id="checkoutItems" class="border rounded p-3 mb-3 bg-light" style="max-height: 300px; overflow-y: auto;">
-                                    <!-- Cart items will be populated here -->
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-3">
-                                    <span class="h6 mb-0">Total Amount:</span>
-                                    <span class="h5 mb-0 text-success" id="checkoutTotalDisplay">₱0.00</span>
-                                </div>
+                        <!-- Order Summary -->
+                        <div class="checkout-summary mb-4">
+                            <h6 class="fw-bold mb-3">
+                                <i class="fas fa-receipt me-2"></i>Order Summary
+                            </h6>
+                            <div id="checkoutItems" class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
+                                <!-- Cart items will be populated here -->
                             </div>
-                            
-                            <!-- Customer Information Column -->
-                            <div class="col-md-6">
-                                <div class="h6 mb-3">
-                                    <i class="fas fa-user me-2 text-primary"></i>Customer Information
-                                </div>
-                                
-                                <!-- Full Name Field -->
+                            <hr>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Total Amount:</h5>
+                                <h5 class="text-success mb-0" id="checkoutTotalDisplay">₱0.00</h5>
+                            </div>
+                        </div>
+
+                        <!-- Shipping Information -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-truck me-2"></i>Shipping Information
+                                </h6>
+                            </div>
+                            <div class="card-body">
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="fas fa-user me-1 text-muted"></i>Full Name
@@ -311,40 +381,70 @@ if ($isMaint === '1' && $userRole !== 'admin') {
                                         readonly>
                                 </div>
                                 
-                                <!-- Phone Number Field -->
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="fas fa-phone me-1 text-muted"></i>Phone Number
+                                        <i class="fas fa-envelope me-1 text-muted"></i>Email Address
                                     </label>
-                                    <input type="tel" 
+                                    <input type="email" 
                                         class="form-control bg-light" 
-                                        name="phone" 
-                                        value="<?= htmlspecialchars($user['phone'] ?? '') ?>" 
+                                        name="email" 
+                                        value="<?= htmlspecialchars($user['email'] ?? '') ?>" 
                                         readonly>
                                 </div>
                                 
-                                <!-- Address Field -->
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="fas fa-map-marker-alt me-1 text-muted"></i>Delivery Address
+                                        <i class="fas fa-map-marker-alt me-1 text-muted"></i>Shipping Address
                                     </label>
                                     <textarea class="form-control bg-light" 
                                             name="shipping_address" 
                                             rows="3" 
                                             readonly><?= htmlspecialchars($user['address'] ?? '') ?></textarea>
                                 </div>
-                                
-                                <!-- Payment Method Field -->
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="fas fa-money-bill me-1 text-muted"></i>Payment Method
-                                    </label>
-                                    <input type="text" 
-                                        class="form-control bg-light" 
-                                        name="payment_method" 
-                                        value="Cash on Delivery (COD)" 
-                                        readonly>
+                            </div>
+                        </div>
+
+                        <!-- Payment Method Selection -->
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-credit-card me-2"></i>Payment Method
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- Cash on Delivery Option -->
+                                <div class="payment-method-card selected" data-payment="cod">
+                                    <div class="d-flex align-items-center">
+                                        <input type="radio" name="payment_option" value="cod" id="payment_cod" checked>
+                                        <div class="payment-icon text-success">
+                                            <i class="fas fa-money-bill-wave"></i>
+                                        </div>
+                                        <div>
+                                            <label for="payment_cod" class="mb-0 fw-bold">Cash on Delivery (COD)</label>
+                                            <p class="text-muted small mb-0">Pay when you receive your order</p>
+                                        </div>
+                                    </div>
                                 </div>
+
+                                <!-- PayPal Option -->
+                                <div class="payment-method-card" data-payment="paypal">
+                                    <div class="d-flex align-items-center">
+                                        <input type="radio" name="payment_option" value="paypal" id="payment_paypal">
+                                        <div class="payment-icon" style="color: #0070ba;">
+                                            <i class="fab fa-paypal"></i>
+                                        </div>
+                                        <div>
+                                            <label for="payment_paypal" class="mb-0 fw-bold">PayPal</label>
+                                            <p class="text-muted small mb-0">Pay securely with PayPal</p>
+                                            <?php if ($paypalMode === 'sandbox'): ?>
+                                            <span class="badge bg-warning text-dark">Sandbox Mode</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PayPal Button Container -->
+                                <div id="paypal-button-container"></div>
                             </div>
                         </div>
                     </div>
@@ -364,7 +464,7 @@ if ($isMaint === '1' && $userRole !== 'admin') {
                                     <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">
                                         <i class="fas fa-times me-1"></i>Cancel
                                     </button>
-                                    <button type="submit" class="btn btn-success px-4">
+                                    <button type="submit" class="btn btn-success px-4" id="place-order-btn">
                                         <i class="fas fa-check me-1"></i>Place Order
                                     </button>
                                 </div>
@@ -459,9 +559,6 @@ if ($isMaint === '1' && $userRole !== 'admin') {
         </div>
     </div>
 
-
-
-
     
     <?php require_once '../../../app/views/includes/shop_footer.php';?>
 
@@ -470,23 +567,241 @@ if ($isMaint === '1' && $userRole !== 'admin') {
     <script src="../../../public/js/shop.js"></script>
     <script src="../../../public/js/pagess.js"></script>
 
+    <!-- PayPal Integration Script -->
+    <script>
+        // ─── Payment method toggle ────────────────────────────────────────────────
+        document.querySelectorAll('.payment-method-card').forEach(card => {
+            card.addEventListener('click', function () {
+                document.querySelectorAll('.payment-method-card').forEach(c => c.classList.remove('selected'));
+                this.classList.add('selected');
 
+                const radio = this.querySelector('input[type="radio"]');
+                radio.checked = true;
 
+                if (this.dataset.payment === 'cod') {
+                    document.getElementById('selected_payment_method').value = 'Cash on Delivery (COD)';
+                    document.getElementById('paypal-button-container').style.display = 'none';
+                    document.getElementById('place-order-btn').style.display = 'block';
+                } else if (this.dataset.payment === 'paypal') {
+                    document.getElementById('selected_payment_method').value = 'PayPal';
+                    document.getElementById('paypal-button-container').style.display = 'block';
+                    document.getElementById('place-order-btn').style.display = 'none';
+                }
+            });
+        });
 
+        // ─── Helpers ─────────────────────────────────────────────────────────────
+        /**
+         * Reads the cart from the live CartManager instance (pagess.js uses
+         * localStorage key 'shopping_cart'), with fallbacks to both localStorage
+         * keys so it works regardless of which system stored the cart.
+         *
+         * KEY FIX: item.price must be the PER-UNIT price (not subtotal).
+         * PayPal computes item_total = sum(unit_price x qty) and compares it to
+         * breakdown.item_total — any mismatch → 422 error.
+         */
+        function buildPayPalPayload() {
+            // Priority 1: live CartManager (pagess.js stores to 'shopping_cart')
+            let cartData = (window.cartManager && window.cartManager.cart && window.cartManager.cart.length > 0)
+                ? window.cartManager.cart
+                // Priority 2: 'shopping_cart' key (CartManager's localStorage key)
+                : (() => { try { return JSON.parse(localStorage.getItem('shopping_cart') || '[]'); } catch(e){ return []; } })();
 
+            // Priority 3: 'cart' key (shop.js legacy localStorage key)
+            if (!cartData || cartData.length === 0) {
+                try { cartData = JSON.parse(localStorage.getItem('cart') || '[]'); } catch(e) { cartData = []; }
+            }
 
+            if (!cartData || cartData.length === 0) return null;
 
+            const items = [];
+            let computedTotal = 0;
 
+            cartData.forEach(item => {
+                const unitPrice = parseFloat(item.price);   // per-unit price
+                const qty       = parseInt(item.quantity, 10);
+                computedTotal  += unitPrice * qty;
 
+                items.push({
+                    name:        String(item.name).substring(0, 127),
+                    description: ('Size: ' + (item.size || 'N/A')).substring(0, 127),
+                    quantity:    qty,
+                    price:       unitPrice
+                });
+            });
 
+            computedTotal = Math.round(computedTotal * 100) / 100;
+            return { items, total: computedTotal, cartData };
+        }
 
+        // Show a Bootstrap modal for PayPal results instead of bare alert()
+        function showPayPalResultModal(success, message) {
+            let modalId = 'paypalResultModal';
+            let el = document.getElementById(modalId);
+            if (!el) {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `
+                <div class="modal fade" id="${modalId}" tabindex="-1">
+                  <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow-lg">
+                      <div class="modal-header border-0">
+                        <h5 class="modal-title fw-bold" id="${modalId}Title"></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body text-center px-4 pb-4">
+                        <div id="${modalId}Icon" class="display-3 mb-3"></div>
+                        <p id="${modalId}Msg" class="text-muted"></p>
+                      </div>
+                      <div class="modal-footer border-0 justify-content-center">
+                        <button class="btn btn-dark px-4" data-bs-dismiss="modal">OK</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>`;
+                document.body.appendChild(wrapper.firstElementChild);
+                el = document.getElementById(modalId);
+            }
+            el.querySelector(`#${modalId}Title`).textContent = success ? 'Payment Successful!' : 'Payment Failed';
+            el.querySelector(`#${modalId}Icon`).innerHTML    = success
+                ? '<i class="fas fa-check-circle text-success"></i>'
+                : '<i class="fas fa-times-circle text-danger"></i>';
+            el.querySelector(`#${modalId}Msg`).textContent   = message;
+            new bootstrap.Modal(el).show();
+        }
 
+        // ─── PayPal Buttons ───────────────────────────────────────────────────────
+        paypal.Buttons({
 
+            // ── Step 1: Create the PayPal order ──────────────────────────────────
+            // FIX: Must include a full breakdown with item_total that EXACTLY matches
+            // sum(unit_amount.value * quantity) per line-item. Omitting the breakdown
+            // or passing a mismatched total is the cause of the 422 sandbox error.
+            createOrder: function (data, actions) {
+                const payload = buildPayPalPayload();
 
+                if (!payload) {
+                    showPayPalResultModal(false, 'Your cart is empty. Please add items before paying.');
+                    return Promise.reject(new Error('Empty cart'));
+                }
 
+                const orderItems = payload.items.map(item => ({
+                    name:        item.name,
+                    description: item.description,
+                    quantity:    String(item.quantity),
+                    unit_amount: {
+                        currency_code: 'PHP',
+                        value:         item.price.toFixed(2)
+                    },
+                    category: 'PHYSICAL_GOODS'
+                }));
 
+                return actions.order.create({
+                    purchase_units: [{
+                        description: 'Empire Streetwear Purchase',
+                        amount: {
+                            currency_code: 'PHP',
+                            value: payload.total.toFixed(2),
+                            breakdown: {
+                                // MUST equal sum(unit_amount x quantity) exactly
+                                item_total: {
+                                    currency_code: 'PHP',
+                                    value: payload.total.toFixed(2)
+                                }
+                            }
+                        },
+                        items: orderItems
+                    }],
+                    application_context: {
+                        brand_name:  'EMPIRE STREETWEAR',
+                        user_action: 'PAY_NOW'
+                    }
+                });
+            },
 
+            // ── Step 2: Capture payment & save order to DB ───────────────────────
+            onApprove: function (data, actions) {
+                return actions.order.capture().then(function (details) {
+                    const payerName = (details.payer && details.payer.name)
+                        ? details.payer.name.given_name + ' ' + (details.payer.name.surname || '')
+                        : 'Customer';
 
+                    const form    = document.getElementById('checkoutForm');
+                    const address = form.querySelector('[name="shipping_address"]').value;
+                    const payload = buildPayPalPayload();
+
+                    if (!payload) {
+                        showPayPalResultModal(false, 'Cart data lost after payment. Contact support with PayPal ID: ' + data.orderID);
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('total_amount',             payload.total.toFixed(2));
+                    formData.append('shipping_address',         address);
+                    formData.append('payment_method',           'PayPal');
+                    formData.append('cart',                     JSON.stringify(payload.cartData));
+                    formData.append('paypal_order_id',          data.orderID);
+                    formData.append('payment_status',           'paid');
+                    formData.append('action',                   'placeOrder');
+                    formData.append('paypal_capture_details',   JSON.stringify(details));
+
+                    fetch('../../../app/controllers/OrderController.php?action=placeOrder', {
+                        method: 'POST',
+                        body:   formData
+                    })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result.success) {
+                            // Clear all cart storage (CartManager + both localStorage keys)
+                            if (window.cartManager) {
+                                window.cartManager.cart = [];
+                                window.cartManager.saveCartToStorage();
+                                window.cartManager.updateCartDisplay();
+                            }
+                            localStorage.removeItem('shopping_cart');
+                            localStorage.removeItem('cart');
+
+                            const checkoutModal = bootstrap.Modal.getInstance(
+                                document.getElementById('checkoutModal')
+                            );
+                            if (checkoutModal) checkoutModal.hide();
+
+                            showPayPalResultModal(
+                                true,
+                                'Thank you, ' + payerName + '! Your order ' +
+                                (result.order_id ? '#' + result.order_id : '') + ' has been placed.'
+                            );
+
+                            document.getElementById('paypalResultModal')
+                                .addEventListener('hidden.bs.modal', () => window.location.reload(), { once: true });
+                        } else {
+                            showPayPalResultModal(
+                                false,
+                                'Payment received but order save failed: ' +
+                                (result.message || 'Unknown error. Contact support.')
+                            );
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Order save error:', err);
+                        showPayPalResultModal(
+                            false,
+                            'Payment received but order not saved. Contact support with PayPal order ID: ' + data.orderID
+                        );
+                    });
+                });
+            },
+
+            onCancel: function () {
+                showPayPalResultModal(false, 'Payment cancelled. Your cart is still intact.');
+            },
+
+            onError: function (err) {
+                console.error('PayPal error:', err);
+                showPayPalResultModal(false, 'A PayPal error occurred. Please try again or choose Cash on Delivery.');
+            }
+
+        }).render('#paypal-button-container');
+    </script>
     
     </body>
     </html>

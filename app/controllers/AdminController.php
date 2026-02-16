@@ -1505,8 +1505,336 @@ class AdminController
         }
     }
 
+    // ============================================================================
+    // ORDER RECEIPT EMAIL
+    // Sent immediately when a customer places an order (Cash or PayPal).
+    //
+    // HOW TO CALL — add this inside OrderController.php after saving the order:
+    //
+    //   require_once __DIR__ . '/../controllers/AdminController.php';
+    //   $adminCtrl = new AdminController($database);
+    //   $adminCtrl->sendOrderReceiptEmail(
+    //       $userEmail,        // string  – customer's email address
+    //       $orderNumber,      // string  – order_number from DB  e.g. 'ORD-00042'
+    //       $orderItems,       // array   – each row: ['name','size','quantity','price','subtotal']
+    //       $totalAmount,      // float   – e.g. 1250.00
+    //       $paymentMethod,    // string  – 'PayPal'  OR  'Cash on Delivery (COD)'
+    //       $shippingAddress,  // string  – full delivery address
+    //       $paypalOrderId,    // string|null – PayPal transaction ID, null for COD
+    //       $customerName      // string  – customer's display name
+    //   );
+    // ============================================================================
 
+    public function sendOrderReceiptEmail(
+        $recipientEmail,
+        $orderNumber,
+        $items,
+        $totalAmount,
+        $paymentMethod,
+        $shippingAddress,
+        $paypalOrderId = null,
+        $customerName  = 'Valued Customer'
+    ) {
+        require_once __DIR__ . '/../../libraries/phpmailer/src/Exception.php';
+        require_once __DIR__ . '/../../libraries/phpmailer/src/PHPMailer.php';
+        require_once __DIR__ . '/../../libraries/phpmailer/src/SMTP.php';
 
+        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
+        // ── Payment type helpers ──────────────────────────────────────────────
+        $isPayPal       = (stripos($paymentMethod, 'paypal') !== false);
+        $payBadgeColor  = $isPayPal ? '#0070ba' : '#1a7a3c';
+        $payLabel       = $isPayPal ? 'PayPal' : 'Cash on Delivery (COD)';
+        $payIcon        = $isPayPal ? '&#128179;' : '&#128181;'; // credit card / banknotes
+        $payNote        = $isPayPal
+            ? 'Your payment has been captured via PayPal. No further action is required.'
+            : 'Please prepare the exact amount upon delivery. Payment will be collected by the courier.';
+
+        // ── Build items table rows ────────────────────────────────────────────
+        $itemRows = '';
+        foreach ($items as $item) {
+            $name     = htmlspecialchars($item['name']     ?? 'Item');
+            $size     = htmlspecialchars($item['size']     ?? 'One Size');
+            $qty      = (int) ($item['quantity']           ?? 1);
+            $price    = number_format((float)($item['price']    ?? 0), 2);
+            $subtotal = number_format((float)($item['subtotal'] ?? ($item['price'] * $item['quantity'])), 2);
+
+            $itemRows .= "
+                                                <tr>
+                                                    <td style='padding: 14px 16px; border-bottom: 1px solid #f0f0f0; font-size: 14px; color: #1a1a1a; font-weight: 500;'>
+                                                        $name
+                                                        <div style='color: #999999; font-size: 12px; margin-top: 3px; font-weight: 400;'>Size: $size</div>
+                                                    </td>
+                                                    <td style='padding: 14px 10px; border-bottom: 1px solid #f0f0f0; font-size: 14px; color: #666666; text-align: center;'>$qty</td>
+                                                    <td style='padding: 14px 10px; border-bottom: 1px solid #f0f0f0; font-size: 14px; color: #666666; text-align: right;'>&#8369;$price</td>
+                                                    <td style='padding: 14px 16px; border-bottom: 1px solid #f0f0f0; font-size: 14px; color: #000000; font-weight: 700; text-align: right;'>&#8369;$subtotal</td>
+                                                </tr>";
+        }
+
+        // ── PayPal transaction ID row (shown only for PayPal orders) ─────────
+        $paypalRow = '';
+        if ($isPayPal && !empty($paypalOrderId)) {
+            $safeId    = htmlspecialchars($paypalOrderId);
+            $paypalRow = "
+                                        <tr>
+                                            <td style='padding: 12px 0 0 0; font-size: 12px; color: rgba(255,255,255,0.75); text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>
+                                                Transaction ID
+                                            </td>
+                                            <td style='padding: 12px 0 0 0; font-size: 13px; color: #ffffff; font-weight: 700; font-family: monospace; text-align: right;'>
+                                                $safeId
+                                            </td>
+                                        </tr>";
+        }
+
+        // ── Formatted variables ───────────────────────────────────────────────
+        $formattedTotal   = number_format((float) $totalAmount, 2);
+        $formattedAddress = nl2br(htmlspecialchars($shippingAddress));
+        $orderDate        = date('F j, Y \a\t g:i A');
+        $year             = date('Y');
+        $safeName         = htmlspecialchars($customerName);
+        $safeOrderNum     = htmlspecialchars($orderNumber);
+
+        // ── HTML email body ───────────────────────────────────────────────────
+        $mail->Body = "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+        </style>
+    </head>
+    <body style='margin: 0; padding: 0; background-color: #f4f4f4; font-family: \"Poppins\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;'>
+        <table role='presentation' style='width: 100%; border-collapse: collapse; background-color: #f4f4f4;'>
+            <tr>
+                <td align='center' style='padding: 40px 20px;'>
+                    <table role='presentation' style='width: 100%; max-width: 600px; border-collapse: collapse; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);'>
+
+                        <!-- ══ HEADER ══ -->
+                        <tr>
+                            <td style='background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%); padding: 50px 40px; text-align: center;'>
+                                <h1 style='margin: 0; color: #ffffff; font-size: 48px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; font-family: \"Poppins\", sans-serif;'>
+                                    EMPIRE
+                                </h1>
+                                <p style='margin: 12px 0 0 0; color: #a0a0a0; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; font-weight: 500;'>
+                                    Streetwear Culture
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- ══ CONFIRMED BANNER ══ -->
+                        <tr>
+                            <td style='background: #111111; padding: 18px 40px; text-align: center;'>
+                                <p style='margin: 0; color: #ffffff; font-size: 15px; font-weight: 600; letter-spacing: 1px;'>
+                                    &#9989;&nbsp; ORDER CONFIRMED &mdash; Here is your receipt
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- ══ GREETING ══ -->
+                        <tr>
+                            <td style='padding: 50px 40px 30px 40px;'>
+                                <h2 style='margin: 0 0 14px 0; color: #1a1a1a; font-size: 28px; font-weight: 700; font-family: \"Poppins\", sans-serif;'>
+                                    Thank you  for trusting us
+                                </h2>
+                                <p style='margin: 0; color: #555555; font-size: 15px; line-height: 1.7; font-weight: 400;'>
+                                    We&rsquo;ve received your order and it&rsquo;s now being prepared.
+                                    Below is your full receipt &mdash; please keep it for your records.
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- ══ ORDER META ══ -->
+                        <tr>
+                            <td style='padding: 0 40px 30px 40px;'>
+                                <table role='presentation' style='width: 100%; border-collapse: collapse; background: #f8f8f8; border: 3px solid #000000; border-radius: 12px;'>
+                                    <tr>
+                                        <td style='padding: 24px 28px; border-right: 2px solid #e8e8e8;'>
+                                            <p style='margin: 0; color: #999999; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;'>
+                                                Order Number
+                                            </p>
+                                            <p style='margin: 8px 0 0 0; color: #000000; font-size: 22px; font-weight: 800; font-family: \"Poppins\", sans-serif;'>
+                                                #$safeOrderNum
+                                            </p>
+                                        </td>
+                                        <td style='padding: 24px 28px;'>
+                                            <p style='margin: 0; color: #999999; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;'>
+                                                Order Date
+                                            </p>
+                                            <p style='margin: 8px 0 0 0; color: #000000; font-size: 14px; font-weight: 600;'>
+                                                $orderDate
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+
+                        <!-- ══ PAYMENT METHOD BADGE ══ -->
+                        <tr>
+                            <td style='padding: 0 40px 30px 40px;'>
+                                <table role='presentation' style='width: 100%; border-collapse: collapse; background: $payBadgeColor; border-radius: 12px;'>
+                                    <tr>
+                                        <td style='padding: 22px 28px;'>
+                                            <table role='presentation' style='width: 100%; border-collapse: collapse;'>
+                                                <tr>
+                                                    <td>
+                                                        <p style='margin: 0; color: rgba(255,255,255,0.8); font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;'>
+                                                            Payment Method
+                                                        </p>
+                                                        <p style='margin: 8px 0 4px 0; color: #ffffff; font-size: 20px; font-weight: 700; font-family: \"Poppins\", sans-serif;'>
+                                                            $payIcon &nbsp;$payLabel
+                                                        </p>
+                                                        <p style='margin: 6px 0 0 0; color: rgba(255,255,255,0.88); font-size: 13px; line-height: 1.5; font-weight: 400;'>
+                                                            $payNote
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                                $paypalRow
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+
+                        <!-- ══ ITEMS TABLE ══ -->
+                        <tr>
+                            <td style='padding: 0 40px 30px 40px;'>
+                                <p style='margin: 0 0 14px 0; color: #1a1a1a; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;'>
+                                    Items Ordered
+                                </p>
+                                <table role='presentation' style='width: 100%; border-collapse: collapse; border: 1px solid #e8e8e8; border-radius: 10px; overflow: hidden;'>
+
+                                    <!-- Table header -->
+                                    <thead>
+                                        <tr style='background: #000000;'>
+                                            <th style='padding: 12px 16px; color: #ffffff; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; text-align: left; font-weight: 600;'>Product</th>
+                                            <th style='padding: 12px 10px; color: #ffffff; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; text-align: center; font-weight: 600;'>Qty</th>
+                                            <th style='padding: 12px 10px; color: #ffffff; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; text-align: right; font-weight: 600;'>Unit Price</th>
+                                            <th style='padding: 12px 16px; color: #ffffff; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; text-align: right; font-weight: 600;'>Subtotal</th>
+                                        </tr>
+                                    </thead>
+
+                                    <!-- Item rows -->
+                                    <tbody>
+                                        $itemRows
+                                    </tbody>
+
+                                    <!-- Total row -->
+                                    <tfoot>
+                                        <tr style='background: #f8f8f8;'>
+                                            <td colspan='3' style='padding: 18px 10px 18px 16px; text-align: right; font-size: 14px; font-weight: 700; color: #1a1a1a; text-transform: uppercase; letter-spacing: 1px; border-top: 2px solid #000000;'>
+                                                Total Amount
+                                            </td>
+                                            <td style='padding: 18px 16px; text-align: right; font-size: 22px; font-weight: 800; color: #000000; border-top: 2px solid #000000; font-family: \"Poppins\", sans-serif;'>
+                                                &#8369;$formattedTotal
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </td>
+                        </tr>
+
+                        <!-- ══ DELIVERY ADDRESS ══ -->
+                        <tr>
+                            <td style='padding: 0 40px 30px 40px;'>
+                                <p style='margin: 0 0 12px 0; color: #1a1a1a; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;'>
+                                    Delivery Address
+                                </p>
+                                <table role='presentation' style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 18px 22px; background: #f8f8f8; border: 1px solid #e8e8e8; border-left: 4px solid #000000; border-radius: 10px;'>
+                                            <p style='margin: 0; color: #333333; font-size: 14px; line-height: 1.7; font-weight: 400;'>
+                                                &#128205;&nbsp;$formattedAddress
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+
+                        <!-- ══ WHAT HAPPENS NEXT ══ -->
+                        <tr>
+                            <td style='padding: 0 40px 50px 40px;'>
+                                <table role='presentation' style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 20px 24px; background: #f0f8ff; border-left: 4px solid #000000; border-radius: 8px;'>
+                                            <p style='margin: 0 0 8px 0; color: #1a1a1a; font-size: 14px; font-weight: 700;'>
+                                                What happens next?
+                                            </p>
+                                            <p style='margin: 0; color: #555555; font-size: 13px; line-height: 1.7; font-weight: 400;'>
+                                                Our team will process your order shortly. You will receive another email
+                                                when your order status is updated. You can also track your order anytime
+                                                by logging into your account.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <p style='margin: 32px 0 0 0; color: #999999; font-size: 13px; line-height: 1.6; text-align: center;'>
+                                    Questions? Contact us at
+                                    <a href='mailto:empirebsit2025@gmail.com' style='color: #000000; text-decoration: none; font-weight: 600;'>
+                                        empirebsit2025@gmail.com
+                                    </a>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- ══ FOOTER ══ -->
+                        <tr>
+                            <td style='background: #000000; padding: 40px 40px; text-align: center;'>
+                                <p style='margin: 0 0 8px 0; color: #ffffff; font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;'>
+                                    EMPIRE
+                                </p>
+                                <p style='margin: 0 0 24px 0; color: #808080; font-size: 13px; line-height: 1.6; font-weight: 400;'>
+                                    Culture &bull; Exclusivity &bull; Lifestyle
+                                </p>
+                                <div style='border-top: 1px solid #333333; padding-top: 24px;'>
+                                    <p style='margin: 0; color: #666666; font-size: 12px; line-height: 1.6; font-weight: 400;'>
+                                        &copy; " . $year . " Empire Streetwear. All rights reserved.<br>
+                                        This is an automated order receipt. Please do not reply to this email.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+";
+
+        try {
+            // Server settings
+            $mail->isSMTP();
+            $mail->Host       = 'smtp.gmail.com';
+            $mail->SMTPAuth   = true;
+            $mail->Username   = 'empirebsit2025@gmail.com';
+            $mail->Password   = 'mqvg swfp cfbu vhze';
+            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port       = 587;
+
+            // Recipients
+            $mail->setFrom('no-reply@empire.com', 'EMPIRE E-COMMERCE');
+            $mail->addAddress($recipientEmail, $safeName);
+
+            // Content
+            $mail->isHTML(true);
+            $mail->Subject = "Order Receipt #$safeOrderNum — EMPIRE Streetwear";
+            $mail->AltBody = "Thank you for your order #$safeOrderNum! Total: PHP $formattedTotal | Payment: $payLabel | Ship to: $shippingAddress";
+
+            $mail->send();
+            error_log("Order receipt email sent to $recipientEmail for order #$orderNumber");
+            return true;
+
+        } catch (Exception $e) {
+            error_log("Order Receipt Mail Error for #$orderNumber: " . $mail->ErrorInfo);
+            return false;
+        }
+    }
 
 }

@@ -26,16 +26,22 @@ class Order {
         return $this->conn->rollback();
     }
 
-    public function createOrder($user_id, $total_amount, $status, $shipping_address, $payment_method) {
+    public function createOrder($user_id, $total_amount, $status, $shipping_address, $payment_method, $paypal_order_id = null, $payment_status = 'pending') {
         try {
             // Generate a unique order number
             $order_number = 'ORD-' . date('Ymd') . '-' . strtoupper(uniqid());
             
-            // Set payment status based on payment method FIRST
-            $payment_status = ($payment_method === 'Cash on Delivery (COD)') ? 'pending' : 'paid';
+            // If payment method is PayPal and we have a PayPal order ID, set payment status to paid
+            if ($payment_method === 'PayPal' && !empty($paypal_order_id)) {
+                $payment_status = 'paid';
+            } elseif ($payment_method === 'Cash on Delivery (COD)') {
+                $payment_status = 'pending';
+            }
             
-            $sql = "INSERT INTO orders (user_id, order_number, total_amount, status, shipping_address, payment_method, payment_status) 
-                    VALUES (:user_id, :order_number, :total_amount, :status, :shipping_address, :payment_method, :payment_status)";
+            $sql = "INSERT INTO orders 
+                    (user_id, order_number, total_amount, status, shipping_address, payment_method, payment_status, paypal_order_id) 
+                    VALUES 
+                    (:user_id, :order_number, :total_amount, :status, :shipping_address, :payment_method, :payment_status, :paypal_order_id)";
             
             $stmt = $this->conn->prepare($sql);
             $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
@@ -45,6 +51,7 @@ class Order {
             $stmt->bindParam(':shipping_address', $shipping_address, PDO::PARAM_STR);
             $stmt->bindParam(':payment_method', $payment_method, PDO::PARAM_STR);
             $stmt->bindParam(':payment_status', $payment_status, PDO::PARAM_STR);
+            $stmt->bindParam(':paypal_order_id', $paypal_order_id, PDO::PARAM_STR);
             
             if ($stmt->execute()) {
                 return $this->conn->lastInsertId();
@@ -58,66 +65,66 @@ class Order {
         }
     }
 
-public function addOrderItem($order_id, $product_id, $product_name, $product_price, $quantity, $size, $subtotal) {
-    try {
-        // First check stock availability
-        $checkStock = $this->conn->prepare("SELECT stock FROM products WHERE id = :product_id");
-        $checkStock->bindParam(':product_id', $product_id, PDO::PARAM_INT);
-        $checkStock->execute();
-        $stock = $checkStock->fetchColumn();
+    public function addOrderItem($order_id, $product_id, $product_name, $product_price, $quantity, $size, $subtotal) {
+        try {
+            // First check stock availability
+            $checkStock = $this->conn->prepare("SELECT stock FROM products WHERE id = :product_id");
+            $checkStock->bindParam(':product_id', $product_id, PDO::PARAM_INT);
+            $checkStock->execute();
+            $stock = $checkStock->fetchColumn();
 
-        if ($stock === false) {
-            throw new Exception("Product not found: $product_name");
+            if ($stock === false) {
+                throw new Exception("Product not found: $product_name");
+            }
+
+            if ($stock < $quantity) {
+                throw new Exception("Not enough stock for product: $product_name (Available: $stock, Requested: $quantity)");
+            }
+
+            // Insert order item
+            $sql = "INSERT INTO order_items 
+                       (order_id, product_id, product_name, product_price, quantity, size, subtotal) 
+                    VALUES 
+                       (:order_id, :product_id, :product_name, :product_price, :quantity, :size, :subtotal)";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':order_id', $order_id, PDO::PARAM_INT);
+            $stmt->bindParam(':product_id', $product_id, PDO::PARAM_INT);
+            $stmt->bindParam(':product_name', $product_name, PDO::PARAM_STR);
+            $stmt->bindParam(':product_price', $product_price, PDO::PARAM_STR);
+            $stmt->bindParam(':quantity', $quantity, PDO::PARAM_INT);
+            $stmt->bindParam(':size', $size, PDO::PARAM_STR);
+            $stmt->bindParam(':subtotal', $subtotal, PDO::PARAM_STR);
+
+            if (!$stmt->execute()) {
+                $errorInfo = $stmt->errorInfo();
+                throw new Exception("Failed to add order item: " . $errorInfo[2]);
+            }
+
+            // Deduct stock after successful order item insertion
+            $updateStock = $this->conn->prepare("UPDATE products SET stock = stock - :quantity WHERE id = :product_id");
+            $updateStock->bindParam(':quantity', $quantity, PDO::PARAM_INT);
+            $updateStock->bindParam(':product_id', $product_id, PDO::PARAM_INT);
+
+            if (!$updateStock->execute()) {
+                $errorInfo = $updateStock->errorInfo();
+                throw new Exception("Failed to update stock: " . $errorInfo[2]);
+            }
+
+            // ✅ NEW: Check if stock is now 0 or less and update status to inactive
+            $newStock = $stock - $quantity;
+            if ($newStock <= 0) {
+                $updateStatus = $this->conn->prepare("UPDATE products SET status = 'inactive' WHERE id = :product_id");
+                $updateStatus->bindParam(':product_id', $product_id, PDO::PARAM_INT);
+                $updateStatus->execute();
+            }
+
+            return true;
+
+        } catch (PDOException $e) {
+            throw new Exception("Database error adding order item: " . $e->getMessage());
         }
-
-        if ($stock < $quantity) {
-            throw new Exception("Not enough stock for product: $product_name (Available: $stock, Requested: $quantity)");
-        }
-
-        // Insert order item
-        $sql = "INSERT INTO order_items 
-                   (order_id, product_id, product_name, product_price, quantity, size, subtotal) 
-                VALUES 
-                   (:order_id, :product_id, :product_name, :product_price, :quantity, :size, :subtotal)";
-
-        $stmt = $this->conn->prepare($sql);
-        $stmt->bindParam(':order_id', $order_id, PDO::PARAM_INT);
-        $stmt->bindParam(':product_id', $product_id, PDO::PARAM_INT);
-        $stmt->bindParam(':product_name', $product_name, PDO::PARAM_STR);
-        $stmt->bindParam(':product_price', $product_price, PDO::PARAM_STR);
-        $stmt->bindParam(':quantity', $quantity, PDO::PARAM_INT);
-        $stmt->bindParam(':size', $size, PDO::PARAM_STR);
-        $stmt->bindParam(':subtotal', $subtotal, PDO::PARAM_STR);
-
-        if (!$stmt->execute()) {
-            $errorInfo = $stmt->errorInfo();
-            throw new Exception("Failed to add order item: " . $errorInfo[2]);
-        }
-
-        // Deduct stock after successful order item insertion
-        $updateStock = $this->conn->prepare("UPDATE products SET stock = stock - :quantity WHERE id = :product_id");
-        $updateStock->bindParam(':quantity', $quantity, PDO::PARAM_INT);
-        $updateStock->bindParam(':product_id', $product_id, PDO::PARAM_INT);
-
-        if (!$updateStock->execute()) {
-            $errorInfo = $updateStock->errorInfo();
-            throw new Exception("Failed to update stock: " . $errorInfo[2]);
-        }
-
-        // ✅ NEW: Check if stock is now 0 or less and update status to inactive
-        $newStock = $stock - $quantity;
-        if ($newStock <= 0) {
-            $updateStatus = $this->conn->prepare("UPDATE products SET status = 'inactive' WHERE id = :product_id");
-            $updateStatus->bindParam(':product_id', $product_id, PDO::PARAM_INT);
-            $updateStatus->execute();
-        }
-
-        return true;
-
-    } catch (PDOException $e) {
-        throw new Exception("Database error adding order item: " . $e->getMessage());
     }
-}
     
     public function reduceProductStock($product_id, $quantity) {
         try {
@@ -168,7 +175,7 @@ public function addOrderItem($order_id, $product_id, $product_name, $product_pri
     public function cancelOrder($order_id, $user_id) {
         try {
             // First check if order belongs to user and can be cancelled
-            $checkSql = "SELECT status FROM orders WHERE id = :order_id AND user_id = :user_id";
+            $checkSql = "SELECT status, payment_method, paypal_order_id FROM orders WHERE id = :order_id AND user_id = :user_id";
             $checkStmt = $this->conn->prepare($checkSql);
             $checkStmt->execute([':order_id' => $order_id, ':user_id' => $user_id]);
             $order = $checkStmt->fetch(PDO::FETCH_ASSOC);
@@ -181,6 +188,9 @@ public function addOrderItem($order_id, $product_id, $product_name, $product_pri
             if (!in_array($order['status'], ['pending', 'processing'])) {
                 return ['success' => false, 'message' => 'Order cannot be cancelled at this stage'];
             }
+            
+            // Note: For PayPal orders, you might want to add refund logic here
+            // using PayPal's refund API if the payment was already captured
     
             // Start transaction for stock restoration
             $this->beginTransaction();
@@ -242,13 +252,6 @@ public function addOrderItem($order_id, $product_id, $product_name, $product_pri
             throw new Exception("Database error fetching order items: " . $e->getMessage());
         }
     }
-
-    
 }
-
-
-
-
-
 
 ?>
